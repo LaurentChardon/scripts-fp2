@@ -5,6 +5,7 @@ package FreshPorts::VerifyPort;
 use element;
 use category;
 use port;
+use commit_log_port;
 
 require Exporter;
 require Sys::Syslog;
@@ -33,18 +34,21 @@ sub RefreshPortsAssociatedWithMessage($;$) {
 	my $commit_log_id	= shift;
 	my $Files			= shift;
 
-	my $portname;		# of the form "$category/$port"
-	my $port;			# of the form "$port_id/$category_id"
+	my $portname;			# of the form "$category/$port"
+	my $port;				# of type FreshPorts::Element
+	my $commit_log_port;	# of type FreshPorts::CommitLogPort
 
 	my $action;
 	my $filename;
 	my $revision;
 	my $value;
 
-    my $subtree;
-    my $category_name;
-    my $port_name;
-    my $extra;
+	my $subtree;
+	my $category_name;
+	my $port_name;
+	my $extra;
+
+	$commit_log_port = FreshPorts::CommitLogPort->new($dbh);
 
 	print "\n\nThat message is all done under Commit ID = '$commit_log_id'\n";
 
@@ -88,6 +92,10 @@ sub RefreshPortsAssociatedWithMessage($;$) {
 		$port->{last_commit_id} = $commit_log_id;
 		$port->save();
 #		MarkPortAsRefreshNeeded($port_id, $commit_id, $action, $entry, $dbh);
+
+		$commit_log_port->{commit_log_id}	= $commit_log_id;
+		$commit_log_port->{port_id}			= $port->{id};
+		$commit_log_port->save();
 	}
 }
 
@@ -114,7 +122,19 @@ sub EnsureCategoryAndPortExist($;$;$) {
 
 	print "\nEnsureCategoryAndPortExist starts:\n";
 	print "element_id  = '$element_id'\nfilename = '$filename'\n";
-	print "subtree  = '$subtree'\ncategory = '$category_name'\nport     = '$port_name'\nentry    = '$extra'\n";
+
+	print "subtree  = '$subtree'\n";
+
+	# don't go printing out stuff which does not exist...
+	if (defined($category)) {
+		print "category = '$category_name'\n";
+		if (defined($port_name)) {
+			print "port     = '$port_name'\n";
+			if (defined($extra)) {
+				print "entry    = '$extra'\n";
+			}
+		}
+	}
 
 	# first, we ignore all non-port tree items
 	if ($subtree ne "ports") {
