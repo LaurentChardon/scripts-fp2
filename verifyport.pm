@@ -88,19 +88,38 @@ sub RefreshPortsAssociatedWithMessage($;$) {
 					die "could not find port '$category/$port' in hash.";
 				}
 
-				$index = $FreshPorts::Constants::FilesWhichPromptRefresh{$extra};
-				if ($index) {
-					print "yes, it's a File Which Prompts Refresh\n";
-					$port->{needs_refresh} |= $index;
-				}
+				#
+				# if we just deleted the Makefile for this port, there's no sense in refreshing the port.
+				# because it's been deleted.
+				#
+				if ($extra eq $FreshPorts::Constants::FILE_MAKEFILE && $action eq $FreshPorts::Constants::REMOVE ) {
+					#
+					# we are deleted (local value, never actually saved to db)
+					#
+					$port->{deleted}		= 1;
+					$port->{needs_refresh}	= 0;
 
-				#
-				# record which files go with what port...
-				#
-				$commit_log_port->{commit_log_id}			= $commit_log_id;
-				$commit_log_port->{port_id}					= $port->{id};
-				$commit_log_port->{commit_log_element_id}	= $commit_log_element_id;
-				$commit_log_port->save();
+				} else {
+
+					#
+					# make sure this commit isn't deleting us...
+					#
+					if (!defined($port->{deleted})) {
+						$index = $FreshPorts::Constants::FilesWhichPromptRefresh{$extra};
+						if ($index) {
+							print "yes, it's a File Which Prompts Refresh\n";
+							$port->{needs_refresh} |= $index;
+						}
+
+						#
+						# record which files go with what port...
+						#
+						$commit_log_port->{commit_log_id}			= $commit_log_id;
+						$commit_log_port->{port_id}					= $port->{id};
+						$commit_log_port->{commit_log_element_id}	= $commit_log_element_id;
+						$commit_log_port->save();
+					}
+				}
 			} else {
 				print "... but is on the list of IgnoredItems!\n\n";
 			}
@@ -119,9 +138,9 @@ sub RefreshPortsAssociatedWithMessage($;$) {
 		print "port = $portname, port_id = '$port->{id}', category_id='$port->{category_id}', needs_refresh='$port->{needs_refresh}'\n";
 
 
-		$port->FetchFilesNeedingRefresh();
-		$port->ExtractValuesFromMakefile();
-		$port->{needs_refresh} = 0;
+#		$port->FetchFilesNeedingRefresh();
+#		$port->ExtractValuesFromMakefile();
+#		$port->{needs_refresh} = 0;
 		$port->{last_commit_id} = $commit_log_id;
 		$port->save();
 #		MarkPortAsRefreshNeeded($port_id, $commit_id, $action, $entry, $dbh);

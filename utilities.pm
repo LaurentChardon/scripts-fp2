@@ -1,4 +1,4 @@
-# $Id: utilities.pm,v 1.2 2001-11-20 17:03:44 dan Exp $
+# $Id: utilities.pm,v 1.3 2001-11-23 03:30:51 dan Exp $
 #
 
 package FreshPorts::Utilities;
@@ -27,5 +27,9 @@ sub ReadFile($) {
 	return $content;
 }
 
+sub InitSyslog() {
+	Sys::Syslog::setlogsock('unix');
+	Sys::Syslog::openlog('FreshPorts', 'cons, pid', 'user');
+}
 
 1;

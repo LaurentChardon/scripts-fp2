@@ -1,11 +1,12 @@
 #!/usr/bin/perl
-# $Id: port.pm,v 1.10 2001-11-20 17:04:31 dan Exp $
+# $Id: port.pm,v 1.11 2001-11-23 03:30:51 dan Exp $
 #
 
 package FreshPorts::Port;
 require Exporter;
 require	config;
 require	element;
+require utilities;
 
 use File::PathConvert;
 use strict;
@@ -71,6 +72,7 @@ sub _GetValuesFromRow {
 	$this->{depends_run}		= $row->{depends_run};
 	$this->{forbidden}			= $row->{forbidden};
 	$this->{broken}				= $row->{broken};
+	$this->{last_commit_id}     = $row->{last_commit_id};
 }
 
 # =================================
@@ -122,6 +124,9 @@ sub save {
 				broken				= " . $dbh->quote($this->{broken})				. ", \
 				last_commit_id		= $this->{last_commit_id} \
 				where id = $this->{id}";
+
+print "sql = $sql\n";
+
 		$sth = $this->{dbh}->prepare($sql);
 		$sth->execute ||
 			die "Could not execute SQL $sql ... maybe invalid? " . $dbh->errstr;
@@ -473,12 +478,9 @@ sub FetchFilesNeedingRefresh {
 	# a return of zero indicates success.
 
 	my $this	= shift;
-
 	my $result	= 0;
 
-#	my $dirname = "$PORTSBASEDIR/$category";
-
-	print " now in RefreshOnePort.  press enter to continue";
+#	print " now in RefreshOnePort.  press enter to continue\n";
 # <STDIN>;
 
 	# now find out what needs to be refreshed....

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# $Id: load_xml_into_db.pl,v 1.16 2001-11-21 05:28:02 dan Exp $
+# $Id: load_xml_into_db.pl,v 1.17 2001-11-23 03:30:50 dan Exp $
 #
 #
 # Parse cvs messages in XML format so they can be put into a database
@@ -20,7 +20,8 @@
 #we make a great deal of use of a global variable Updates.  We should fix that up.
 # use strict;
 
-use lib '/home/lists/scripts';
+use lib '~/tmp/scripts/';
+#use lib '/home/lists/scripts/';
 
 require Sys::Syslog;
 
@@ -54,8 +55,7 @@ my %ValidFileActions = (	$FreshPorts::Constants::ADD		=> "A",
 							$FreshPorts::Constants::MODIFY	=> "M");
 
 
-Sys::Syslog::setlogsock('unix');
-Sys::Syslog::openlog('FreshPorts', 'cons, pid', 'user');
+FreshPorts::Utilities::InitSyslog();
 
 my %Updates;
 
@@ -211,7 +211,15 @@ sub handle_os_end {
 
 sub handle_update_end
 {
+	#
+	# refresh all the ports associated with this message
+	# I *think* this is where we should do our first commit.
+	#
 	FreshPorts::VerifyPort::RefreshPortsAssociatedWithMessage($commit_log_id, \@Files);
+
+	#
+	# and this is where we should do our second commit
+	#
 
 	print "\n --- end of this update --- \n";
 
