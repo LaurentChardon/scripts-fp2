@@ -1,4 +1,4 @@
-	# $Id: constants.pm,v 1.3 2001-11-20 17:04:31 dan Exp $
+# $Id: constants.pm,v 1.4 2001-11-23 20:02:30 dan Exp $
 #
 
 package FreshPorts::Constants;
@@ -36,9 +36,17 @@ $FreshPorts::Constants::FILE_MAKEFILEMAN	= "files/Makefile.man";
 );
 
 #
-# These are the directories/entries
-# which FreshPorts does not track
+# These are the entries within /usr/ports/ which we ignore
+# and /usr/ports/<category> which FreshPorts does not track
 #
-$FreshPorts::Constants::IgnoredItems = "Attic|distfiles|Mk|Tools|Templates|Makefile|pkg";
+%FreshPorts::Constants::IgnoredItems = (
+	"Attic"		=> 1,
+	"distfiles"	=> 2,
+	"Mk"		=> 3,
+	"Tools"		=> 4,
+	"Templates"	=> 5,
+	"Makefile"	=> 6,
+	"pkg"		=> 7,
+);
 
 1;

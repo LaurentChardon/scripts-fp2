@@ -65,20 +65,18 @@ sub SetNeedsRefreshForPortsAssociatedWithMessage($;$) {
 			print "$port_name, ";
 		}
 
-		print ", ";
-
 		if (defined($extra)) {
 			print "$extra, ";
 		}
 
-		print ", $commit_log_element_id\n";
+		print "$commit_log_element_id\n";
 
 		# is this file is in the ports tree?
 		# e.g. ports/LEGAL won't get through here because $port_name will not be defined.
 		if ($subtree eq $FreshPorts::Config::ports_prefix && defined($category_name) && defined($port_name)) {
 			print "yes, this file is in the ports tree\n";
 
-			if (index($FreshPorts::Constants::IgnoredItems, $category_name) == -1 && index($FreshPorts::Constants::IgnoredItems, $port_name) == -1) {
+			if (!defined($FreshPorts::Constants::IgnoredItems{$category_name}) && !defined($FreshPorts::Constants::IgnoredItems{$port_name})) {
 				# find the port for this filename....
 				$port = $PortsChecked{"$category_name/$port_name"};
 				if (!$port) {
@@ -193,7 +191,7 @@ sub EnsureCategoryAndPortExist($;$;$) {
 
 	# first, we ignore all non-port tree items
 	if ($subtree eq $FreshPorts::Config::ports_prefix && defined($category_name) && defined($port_name)) {
-		if (index($FreshPorts::Constants::IgnoredItems, $category_name) == -1 && index($FreshPorts::Constants::IgnoredItems, $port_name) == -1) {
+		if (!defined($FreshPorts::Constants::IgnoredItems{$category_name}) && !defined($FreshPorts::Constants::IgnoredItems{$port_name})) {
 
 			print "processing above entry...\n";
 
