@@ -12,7 +12,7 @@ my ($dbh, $element, $name);
 $dbh = FreshPorts::Database::GetDBHandle();
 
 #$name = "/delete/me/" . time();
-$name = "/ports/security/logcheck";
+$name = "/src/fake/me2.txt";
 
 print "CREATING element with name = '$name'\n";
 

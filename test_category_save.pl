@@ -14,7 +14,7 @@ my ($dbh, $category, $name);
 
 $dbh = FreshPorts::Database::GetDBHandle();
 
-$name = "security";
+$name = "japanese";
 
 print "CREATING category with name = '$name'\n";
 
@@ -55,7 +55,7 @@ print "description          = $category->{description}\n";
 
 print "\nAND SAVING IT AGAIN....\n";
 
-$category->{description} = $category->{description} . ' - new';
+$category->{description} = $category->{description} . ' - this silly suffix added during testing';
 $category->save();
 
 $category = FreshPorts::Category->new($dbh);

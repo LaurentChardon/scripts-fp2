@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# $Id: load_xml_into_db.pl,v 1.2 2001-11-06 21:01:01 dan Exp $
+# $Id: load_xml_into_db.pl,v 1.3 2001-11-08 19:03:09 dan Exp $
 #
 #
 # Parse cvs messages in XML format so they can be put into a database
@@ -21,8 +21,10 @@
 
 require Sys::Syslog;
 
+use element;
 use verifyport;
 use config;
+use constants;
 use db_utils;
 use database;
 
@@ -37,11 +39,15 @@ my $SystemVersionID;	# the system version id for this update.  Usually 'HEAD' =>
 
 my $dbh;
 
+my @Files;				# files affected by this commit
+
 #
 # a file can be added to the repository, deleted (removed) from the repository,
 # or modified in the repository.
 #
-my %ValidFileActions = ("Add" => "A", "Remove" => "R", "Modify" => "M");
+my %ValidFileActions = (	FreshPorts::Constants::ADD		=> "A",
+							FreshPorts::Constants::REMOVE	=> "R",
+							FreshPorts::Constants::MODIFY	=> "M");
 
 
 Sys::Syslog::setlogsock('unix');
@@ -197,6 +203,14 @@ sub handle_os_end {
 
 sub handle_update_end
 {
+	my ($action, $path, $revision);
+	my $value;
+
+	foreach $value (@Files) {
+		($action, $path, $revision) = @$value;
+		print "$action, $path, $revision\n";
+	}
+
    print "\n --- end of this update --- \n";
 
    # we don't clear these values until the end of the update
@@ -241,26 +255,39 @@ sub FileActionValid($) {
 
 sub handle_file_end
 {
-	#
-	# This is where we would update commit_log_element
-	#
-	my $NewRevision = 0;
-	my $fileaction;
+	my $FileAction		= $Updates{FileAction};
+	my $FilePath		= $Updates{FilePath};
+	my $FileRevision	= $Updates{FileRevision};
+	my $fileaction;		# the value obtained from the hash array
+						# and which will be stored into the database.
 
-	print "File = [$Updates{FileAction} : $Updates{FilePath}";
+	my $ElementAdded	= 0;
+	my $NewRevision		= 0;
+	my $element;
+	my $element_id;
+	my $filename		= $FilePath;
+	my $revisionname	= $FileRevision;
+
+	#
+	# accumulate a list of files which will be updated later
+	#
+
+	push @Files, [$FileAction, $FilePath, $FileRevision];
+
+	print "File = [$FileAction : $FilePath";
 
 	#
 	# we only get a FileRevision for Modify and Add
 	#
 
-	if ($Updates{FileAction} eq $FreshPorts::Config::ADD || $Updates{FileAction} eq $FreshPorts::Config::MODIFY) {
+	if ($FileAction eq $FreshPorts::Constants::ADD || $FileAction eq $FreshPorts::Constants::MODIFY) {
 		$NewRevision = 1;
-		print " : $Updates{FileRevision}";
+		print " : $FileRevision";
 	}
 
 	print "]\n";
 
-	$fileaction = FileActionValid($Updates{FileAction});
+	$fileaction = FileActionValid($FileAction);
 	print "FileActionValid ==> " . $fileaction . "\n";
 
 	if (!$fileaction) {
@@ -274,13 +301,50 @@ sub handle_file_end
 		return;
 	}
 
-	my $filename     = $Updates{FilePath};
-	my $revisionname = $Updates{FileRevision};
+	# grab the element corresponding to this filename.
+	$element = FreshPorts::Element->new($dbh);
+	$element->{pathname} = $filename;
+	$element_id = $element->FetchByName();
 
-	my $element_id = Pathname_ID($filename, $dbh);
 	if (!defined($element_id)) {
 		# add the element to the tree
-		$element_id = Element_Add($filename, "F", $dbh);
+		$element->{directory_file_flag} = 'F';
+
+		#
+		# sometimes we find out about an element being removed
+		# before we've added it to the tree...
+		#
+
+		if ($FileAction == $FreshPorts::Constants::REMOVE) {
+			$element->{status} = $FreshPorts::Element::Deleted;
+		}
+		$element_id = $element->save();
+
+		#
+		# and now fetch it back so we have all the correct values.
+		# (e.g. parent_id)
+		#
+		$element->FetchByName();
+		$ElementAdded = 1;
+	} else {
+		# sometimes the status is wrong.  This is where we correct it.
+#		if ($element->{status} eq $FreshPorts::Element::Active) {
+#			if ($FileAction eq $FreshPorts::Constants::REMOVE) {
+#				$element->{status} = $FreshPorts::Element::Deleted;
+#				$element->save();
+#			}
+#		} else {
+#			if ($element->{status} eq $FreshPorts::Element::Deleted) {
+#				if ($FileAction eq $FreshPorts::Constants::Modify || $FileAction eq $FreshPorts::Constants::Add) {
+#					$element->{status} = $FreshPorts::Element::Active;
+#    	            $element->save();
+#				}
+#			} else {
+#				Sys::Syslog::syslog('warning', "Unknown element->status found.");
+#				print "Unknown element->status found";
+#				die   "Unknown element->status found";
+#			}
+#		}
 	}
 
 	#
@@ -292,6 +356,9 @@ sub handle_file_end
 		print "sorry, but I should have had an element_id for '$filename', but I didn't.\n";
 		die   "sorry, but I should have had an element_id for '$filename', but I didn't.\n";
 	}
+
+	# sometimes we get things wrong.  This fixes it up
+	FreshPorts::Element::AdjustElementStatus($element, $FileAction);
 
 	#
 	# This is where we should start looking at $filename
@@ -445,10 +512,12 @@ sub handle_message_end {
    print "MessageTo      = [$Updates{MessageToAll}]\n";
    print "MessageSubject = [$Updates{MessageSubject}]\n";
 
-   if (!($Updates{MessageSubject} =~ m/ports/)) {
-      print "not a ports tree commit.  we'll just exit now shall we?\n";
-      exit 7;
-   }
+#	we will now process all commits, not just ports commits
+#
+#   if (!($Updates{MessageSubject} =~ m/ports/)) {
+#      print "not a ports tree commit.  we'll just exit now shall we?\n";
+#      exit 7;
+#   }
 
    # use this information to update the database
    print "into handle_message_end, let's save that message now!\n\n";
@@ -503,7 +572,7 @@ sub SaveUpdateToDB {
    }
 
 
-   my $id = FreshPorts::Database::GetNextValue($FreshPorts::Config::commit_log_seq, $dbh);
+   my $id = FreshPorts::Database::GetNextValue($FreshPorts::Constants::commit_log_seq, $dbh);
 
    $message_date       = $dbh->quote(
                             sprintf "%04u/%02u/%02u %02u:%02u:%02u %s", 

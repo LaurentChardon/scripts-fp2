@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-# $Id: element.pm,v 1.3 2001-11-05 22:37:36 dan Exp $
+# $Id: element.pm,v 1.4 2001-11-08 19:03:09 dan Exp $
 #
 
 package FreshPorts::Element;
@@ -8,8 +8,8 @@ package FreshPorts::Element;
 use strict;
 use File::Basename;
 
-my $Active	= 'A';
-my $Deleted	= 'D';
+$FreshPorts::Element::Active	= 'A';
+$FreshPorts::Element::Deleted	= 'D';
 
 sub new {
 	my $this		= {};
@@ -48,7 +48,7 @@ sub save {
 	}
 
 	if (!$this->{status}) {
-		$this->{status} = $Active;
+		$this->{status} = $FreshPorts::Element::Active;
 	}
 
 	# if we don't have the parent id, derive it from the pathname

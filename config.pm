@@ -1,30 +1,14 @@
-# $Id: config.pm,v 1.2 2001-11-05 22:37:36 dan Exp $
+# $Id: config.pm,v 1.3 2001-11-08 19:03:09 dan Exp $
 #
 
 package FreshPorts::Config;
 
-$FreshPorts::Config::scriptpath		= "/home/dan/src/freshports2/scripts";
+$FreshPorts::Config::scriptpath		= "/home/dan/src/dev";
 
-#
-# Database sequence IDs
-#
-
-$FreshPorts::Config::commit_log_seq		= "commit_log_id_seq";
-$FreshPorts::Config::ports_id_seq		= "ports_id_seq";
-$FreshPorts::Config::category_id_seq	= "categories_id_seq";
-
-$FreshPorts::Config::ADD         = 'Add';
-$FreshPorts::Config::MODIFY      = 'Modify';
-$FreshPorts::Config::REMOVE      = 'Remove';
-
-$FreshPorts::Config::dbname		= 'FreshPorts2Test';
-$FreshPorts::Config::user		= 'dan';
-$FreshPorts::Config::password	= '';
-
+$FreshPorts::Config::dbname			= 'FreshPorts2Test';
+$FreshPorts::Config::user			= 'dan';
+$FreshPorts::Config::password		= '';
 
 $FreshPorts::Config::prefix_ports	= 'ports';
-
-$FreshPorts::Config::FreeBSD		= 'FreeBSD';
-
 
 1;
