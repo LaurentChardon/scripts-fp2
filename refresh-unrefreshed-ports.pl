@@ -63,34 +63,15 @@ foreach $porttorefresh (@PORTS) {
 
 	$port->{id} = $port_id;
 	if ($port->FetchByID()) {
-		my $FetchAttempts = 5;
-
-		while ($FetchAttempts) {
-			if (!$port->FetchFilesNeedingRefresh()) {
-				$port->ExtractValuesFromMakefile();
-				$port->{needs_refresh} = 0;
-				$port->save();
-				last;
-			} else {
-				# fetch failed
-				# sleep, then try again
-				Sys::Syslog::syslog('warning', "sleeping after fetch failed for ($port_id, $category_name, $port_name, $needs_refresh)");
-				print "fetch failed, sleeping...\n";
-				sleep 10;
-				$FetchAttempts--;
-			}
-		}
-
-		if (!$FetchAttempts) {
-			# could not fetch those files....
-			Sys::Syslog::syslog('warning', "Failed to fetch any files for port ($port_id, $category_name, $port_name, $needs_refresh)");
-			die "Failed to fetch any files for port ($port_id, $category_name, $port_name, $needs_refresh)";
-		}
+		$port->RefreshFromFiles();
 	} else {
 		Sys::Syslog::syslog('warning', "Could not retrieve port ($port_id, $category_name, $port_name, $needs_refresh)");
 		die "Could not retrieve port ($port_id, $category_name, $port_name, $needs_refresh)";
 	}
 }
+
+$sth->finish();
+
 $dbh->commit();
 $dbh->disconnect();
 

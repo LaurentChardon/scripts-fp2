@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# $Id: load_xml_into_db.pl,v 1.17 2001-11-23 03:30:50 dan Exp $
+# $Id: load_xml_into_db.pl,v 1.18 2001-11-23 04:51:39 dan Exp $
 #
 #
 # Parse cvs messages in XML format so they can be put into a database
@@ -20,8 +20,7 @@
 #we make a great deal of use of a global variable Updates.  We should fix that up.
 # use strict;
 
-use lib '~/tmp/scripts/';
-#use lib '/home/lists/scripts/';
+use lib '/home/lists/scripts/';
 
 require Sys::Syslog;
 
@@ -211,15 +210,13 @@ sub handle_os_end {
 
 sub handle_update_end
 {
-	#
-	# refresh all the ports associated with this message
-	# I *think* this is where we should do our first commit.
-	#
-	FreshPorts::VerifyPort::RefreshPortsAssociatedWithMessage($commit_log_id, \@Files);
 
-	#
-	# and this is where we should do our second commit
-	#
+	# this is where we set the needs_refresh field for each port touched by this commit.
+	# once that is done, we commit.
+
+	FreshPorts::VerifyPort::SetNeedsRefreshForPortsAssociatedWithMessage($commit_log_id, \@Files);
+
+	$dbh->commit();
 
 	print "\n --- end of this update --- \n";
 
@@ -253,7 +250,12 @@ sub handle_update_end
 }
 
 sub handle_updates_end {
-   print "\n\n *** end of all updates *** \n";
+	print "\n\n *** end of all updates *** \n";
+
+	# now we should refresh all the ports associated with this commit
+
+	FreshPorts::VerifyPort::RefreshAllPortsTouchedByCommit();
+	$dbh->commit();
 }
 
 sub FileActionValid($) {

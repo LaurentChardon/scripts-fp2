@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# $Id: port.pm,v 1.11 2001-11-23 03:30:51 dan Exp $
+# $Id: port.pm,v 1.12 2001-11-23 04:51:39 dan Exp $
 #
 
 package FreshPorts::Port;
@@ -145,7 +145,14 @@ print "sql = $sql\n";
 
 		$this->{id} = FreshPorts::Database::GetNextValue($FreshPorts::Constants::ports_seq, $dbh);
 
-		$this->{needs_refresh} = $this->GetNeedsRefreshForNewPort();
+		#
+		# we might be creating a new port for a port which has just been deleted.
+		# we don't want to do this if the port has been deleted.
+		# that sounds odd... but anything can happen...
+		#
+#		if (!defined($this->{deleted}) {
+#			$this->{needs_refresh} = $this->GetNeedsRefreshForNewPort();
+#		}
 
 		$sql = "insert into ports (id, element_id, category_id, needs_refresh) values ( \
 				$this->{id}, \
@@ -248,6 +255,10 @@ sub FetchByPartialPathName {
 }
 
 sub GetNeedsRefreshForNewPort {
+#
+# This function may be deprecated.
+#
+
 	my $this = shift;
 	#
 	# When a new port is imported, we need to get the
@@ -599,6 +610,43 @@ sub _PackageExists($) {
 	}
 
 	return $exists;
+}
+
+sub RefreshFromFiles() {
+#
+# refresh this port based on the make files associated with it and the value of needs_refresh
+#
+	my $this    = shift;
+
+	my $result	= 0;
+
+	my $FetchAttempts = 5;
+
+	if ($this->{needs_refresh} > 0) {
+		while ($FetchAttempts) {
+			if (!$this->FetchFilesNeedingRefresh()) {
+				$this->ExtractValuesFromMakefile();
+				$this->{needs_refresh} = 0;
+				$this->save();
+				last;
+			} else {
+				# fetch failed
+				# sleep, then try again
+				Sys::Syslog::syslog('warning', "sleeping after fetch failed for ($this->{id}, $this->{category}, $this->{name}, $this->{needs_refresh})");
+				print "fetch failed, sleeping...\n";
+				sleep 10;
+				$FetchAttempts--;
+			}
+		}
+	} else {
+		print "this port does not need a refresh\n";
+	}
+
+	if (!$FetchAttempts) {
+		$result = 1;
+	}
+
+	return $result;
 }
 
 1;

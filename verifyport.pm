@@ -6,12 +6,10 @@ use element;
 use category;
 use port;
 use commit_log_port;
+use utilities;
 
-require Exporter;
+#require Exporter;
 require Sys::Syslog;
-
-@ISA	= qw(Exporter);
-@EXPORT	= qw(InitialiseNewMessage EnsureCategoryAndPortExist RefreshPortsAssociatedWithMessage);
 
 #
 # WARNING: this hash is filled up during the processing of a single
@@ -24,7 +22,7 @@ sub InitialiseNewMessage() {
 	undef %PortsChecked;
 }
 
-sub RefreshPortsAssociatedWithMessage($;$) {
+sub SetNeedsRefreshForPortsAssociatedWithMessage($;$) {
 	#
 	# This function will refresh all ports associated with a given message.
 	# The ports refreshed appear in %PortsChecked.
@@ -98,28 +96,28 @@ sub RefreshPortsAssociatedWithMessage($;$) {
 					#
 					$port->{deleted}		= 1;
 					$port->{needs_refresh}	= 0;
+					print "THIS PORT HAS BEEN DELETED\n";
+				}
 
-				} else {
-
-					#
-					# make sure this commit isn't deleting us...
-					#
-					if (!defined($port->{deleted})) {
-						$index = $FreshPorts::Constants::FilesWhichPromptRefresh{$extra};
-						if ($index) {
-							print "yes, it's a File Which Prompts Refresh\n";
-							$port->{needs_refresh} |= $index;
-						}
-
-						#
-						# record which files go with what port...
-						#
-						$commit_log_port->{commit_log_id}			= $commit_log_id;
-						$commit_log_port->{port_id}					= $port->{id};
-						$commit_log_port->{commit_log_element_id}	= $commit_log_element_id;
-						$commit_log_port->save();
+				#
+				# make sure this commit isn't deleting us...
+				# NOTE: {deleted} may have been set while processing a previous file name
+				#
+				if (!defined($port->{deleted})) {
+					$index = $FreshPorts::Constants::FilesWhichPromptRefresh{$extra};
+					if ($index) {
+						print "yes, it's a File Which Prompts Refresh\n";
+						$port->{needs_refresh} |= $index;
 					}
 				}
+
+				#
+				# record which files go with what port...
+				#
+				$commit_log_port->{commit_log_id}			= $commit_log_id;
+				$commit_log_port->{port_id}					= $port->{id};
+				$commit_log_port->{commit_log_element_id}	= $commit_log_element_id;
+				$commit_log_port->save();
 			} else {
 				print "... but is on the list of IgnoredItems!\n\n";
 			}
@@ -137,14 +135,22 @@ sub RefreshPortsAssociatedWithMessage($;$) {
 	while (($portname, $port) = each %PortsChecked) {
 		print "port = $portname, port_id = '$port->{id}', category_id='$port->{category_id}', needs_refresh='$port->{needs_refresh}'\n";
 
-
-#		$port->FetchFilesNeedingRefresh();
-#		$port->ExtractValuesFromMakefile();
-#		$port->{needs_refresh} = 0;
 		$port->{last_commit_id} = $commit_log_id;
-		$port->save();
-#		MarkPortAsRefreshNeeded($port_id, $commit_id, $action, $entry, $dbh);
 
+		$port->save();
+	}
+}
+
+sub RefreshAllPortsTouchedByCommit() {
+#
+# given the ports touched by this commit
+# refresh each of them
+#
+
+	while (($portname, $port) = each %PortsChecked) {
+		print "port = $portname, port_id = '$port->{id}', category_id='$port->{category_id}', needs_refresh='$port->{needs_refresh}'\n";
+
+		$port->RefreshFromFiles();
 	}
 }
 
@@ -349,7 +355,6 @@ sub CreateCategory($;$) {
 	return $category->{id};
 }
 
-Sys::Syslog::setlogsock('unix');
-Sys::Syslog::openlog('FreshPorts', 'cons, pid', 'user');
+FreshPorts::Utilities::InitSyslog();
 
 1;
