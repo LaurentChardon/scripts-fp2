@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# $Id: load_xml_into_db.pl,v 1.21 2001-12-05 01:50:36 dan Exp $
+# $Id: load_xml_into_db.pl,v 1.22 2001-12-05 03:48:12 dan Exp $
 #
 #
 # Parse cvs messages in XML format so they can be put into a database
@@ -20,7 +20,7 @@
 #we make a great deal of use of a global variable Updates.  We should fix that up.
 # use strict;
 
-use lib '/home/lists/scripts/';
+use lib '/home/lists/scripts';
 
 require Sys::Syslog;
 
