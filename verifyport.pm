@@ -9,7 +9,6 @@ use port;
 use commit_log_port;
 use utilities;
 
-#require Exporter;
 require Sys::Syslog;
 
 #
@@ -17,10 +16,7 @@ require Sys::Syslog;
 # message.  You must call InitialiseNewMessage() at the start of each
 # new message.
 
-my %PortsChecked;		# contains port class objects.
-
 sub InitialiseNewMessage() {
-	undef %PortsChecked;
 }
 
 sub _CompileListOfPorts($;$;$) {
@@ -32,6 +28,8 @@ sub _CompileListOfPorts($;$;$) {
 	my %CategoriesChecked;	# contains category class objects.
 
 	my $value;
+	my $category;
+	my $port;
 
 	print "STARTING _CompileListOfPorts ................................\n";
 
@@ -66,8 +64,6 @@ sub _CompileListOfPorts($;$;$) {
 					# But we don't create any ports yet.
 					# we do that, if necessary, later.
 					#
-					my $category;
-					my $port;
 
 					print "checking for category='$category_name'\n";
 
@@ -82,6 +78,7 @@ sub _CompileListOfPorts($;$;$) {
 						} else {
 							# we need to create this catgory.
 							# remember to grab ports/<category>/pkg/COMMENT
+							print "creating new category $category_name\n";
 							Sys::Syslog::syslog('warning', "creating new category $category_name");
 
 							$category->{is_primary} = 1;
@@ -101,20 +98,63 @@ sub _CompileListOfPorts($;$;$) {
 
 					$port = $ListOfPorts{"$category_name/$port_name"};
 					if (!$port) {
+						print "* * * we'll have to create that port!\n";
 						$port = FreshPorts::Port->new($dbh);
-						$port->{partialpathname} = "$category_name/$port_name";
-						$port->FetchByPartialPathName();
 
+						# this is all that's needed to retrieve a port which exists
+						$port->{partialpathname}	= "$category_name/$port_name";
+
+
+						$port->FetchByPartialPathName();
 						#
 						# the above fetch may have failed.
 						# in which case, $port->{id} will not be defined
 						# we will take advantage of that later.
 						# for now, all we want is a complete list of ports.
 						#
+						if (!defined($port->{id})) {
+							#
+							# these are the values needed to create a new port
+							#
+							$port->{category_id}	= $category->{id};
+							$port->{name}			= $port_name;
+							$port->{category}		= $category_name;
+						}
 
+print "SETTING CATEGORY =  $port->{category_id}\n";
 						$ListOfPorts{"$category_name/$port_name"} = $port;
 					} else {
 						print "found that port $category_name/$port_name in the cache\n";
+					}
+
+					#
+					# $port now contains the port for this file.
+					# let's adjust the needs_refresh value.
+					#
+					#
+					# if we just deleted the Makefile for this port, there's no sense in refreshing the port.
+					# because it's been deleted.
+					#
+					if ($extra eq $FreshPorts::Constants::FILE_MAKEFILE && $action eq $FreshPorts::Constants::REMOVE ) {
+						#
+						# we are deleted (local value, never actually saved to db)
+						#
+						$port->{deleted}		= 1;
+						$port->{needs_refresh}	= 0;
+						print "THIS PORT HAS BEEN DELETED\n";
+					}
+	
+					#
+					# make sure this commit isn't deleting us...
+					# NOTE: {deleted} may have been set while processing a previous file name
+					#
+					if (!defined($port->{deleted})) {
+						my $index = $FreshPorts::Constants::FilesWhichPromptRefresh{$extra};
+						if ($index) {
+							print "yes, it's a File Which Prompts Refresh (index = $index)\n";
+							$port->{needs_refresh} |= $index;
+							print "needs_refresh is now $port->{needs_refresh}\n";
+						}
 					}
 				}
 			} else {
@@ -135,6 +175,8 @@ sub SaveChangesToPortsTree($;$;$) {
 	my $Files			= shift;
 	my $dbh				= shift;
 
+	my %ListOfPorts;
+
 #
 # %Files will contain a hash of all the files associated with this commit
 # We will do three things
@@ -149,29 +191,45 @@ sub SaveChangesToPortsTree($;$;$) {
 	# This list of ports may not all be in the database.
 	# We'll deal with that as we go along.
 	#
-	%PortsChecked = _CompileListOfPorts($commit_log_id, $Files, $dbh);
+	%ListOfPorts = _CompileListOfPorts($commit_log_id, $Files, $dbh);
 
 	#
-	# for each port, ensure that the makefile was not deleted
+	# for each port, ensure that we save away the new needs_refresh value
+	# This will also create any ports which need to be created
 	#
-	while (my ($portname, $port) = each %PortsChecked) {
-		print "port = $portname, port_id = '$port->{id}', category_id='$port->{category_id}', needs_refresh='$port->{needs_refresh}'\n";
+	while (my ($portname, $port) = each %ListOfPorts) {
+		print "port = $portname, port_id = '";
+		if (defined($port->{id})) {
+			print $port->{id};
+		}
+
+		print "', category_id='";
+		if (defined($port->{category_id})) {
+			print $port->{category_id};
+		}
+
+		print "', needs_refresh='$port->{needs_refresh}'\n";
+
+		$port->{last_commit_id} = $commit_log_id;
+
+		$port->save();
 	}
 
-#	foreach $value (@{$Files}) {
-#	}
+	_RecordPortFilesTouchedByThatCommit($commit_log_id, $Files, \%ListOfPorts, $dbh);
+
+	return %ListOfPorts;
 }
 
-sub SetNeedsRefreshForPortsAssociatedWithMessage($;$;$) {
+sub _RecordPortFilesTouchedByThatCommit($;$;$;$) {
 	#
-	# This function will refresh all ports associated with a given message.
-	# The ports refreshed appear in %PortsChecked.
-	# This variable is updated by SaveChangesToPortsTree and reset by
-	# InitialiseNewMessage.
+	# This function will populate the commit_log_port table.
 	#
 	my $commit_log_id	= shift;
 	my $Files			= shift;
+	my $PortsRef		= shift;
 	my $dbh				= shift;
+
+	my %Ports 			= %{$PortsRef};
 
 	my $portname;			# of the form "$category/$port"
 	my $port;				# of type FreshPorts::Element
@@ -219,35 +277,10 @@ sub SetNeedsRefreshForPortsAssociatedWithMessage($;$;$) {
 
 			if (!defined($FreshPorts::Constants::IgnoredItems{$category_name}) && !defined($FreshPorts::Constants::IgnoredItems{$port_name})) {
 				# find the port for this filename....
-				$port = $PortsChecked{"$category_name/$port_name"};
+				$port = $Ports{"$category_name/$port_name"};
 				if (!$port) {
 					Sys::Syslog::syslog('warning', "could not find port '$category_name/$port_name' in hash.");
 					die "could not find port '$category_name/$port_name' in hash.";
-				}
-
-				#
-				# if we just deleted the Makefile for this port, there's no sense in refreshing the port.
-				# because it's been deleted.
-				#
-				if ($extra eq $FreshPorts::Constants::FILE_MAKEFILE && $action eq $FreshPorts::Constants::REMOVE ) {
-					#
-					# we are deleted (local value, never actually saved to db)
-					#
-					$port->{deleted}		= 1;
-					$port->{needs_refresh}	= 0;
-					print "THIS PORT HAS BEEN DELETED\n";
-				}
-
-				#
-				# make sure this commit isn't deleting us...
-				# NOTE: {deleted} may have been set while processing a previous file name
-				#
-				if (!defined($port->{deleted})) {
-					my $index = $FreshPorts::Constants::FilesWhichPromptRefresh{$extra};
-					if ($index) {
-						print "yes, it's a File Which Prompts Refresh\n";
-						$port->{needs_refresh} |= $index;
-					}
 				}
 
 				#
@@ -262,129 +295,26 @@ sub SetNeedsRefreshForPortsAssociatedWithMessage($;$;$) {
 			}
 		}
 	}
-
-
-	print "\n\n\n********** These are the ports which must be updated\n\n\n";
-
-	print "There are ", scalar(keys %PortsChecked), " key/value pairs in %PortsChecked\n";
-
-	#
-	# for each port, refresh that port
-	#
-	while (($portname, $port) = each %PortsChecked) {
-		print "port = $portname, port_id = '$port->{id}', category_id='$port->{category_id}', needs_refresh='$port->{needs_refresh}'\n";
-
-		$port->{last_commit_id} = $commit_log_id;
-
-		$port->save();
-	}
 }
 
-sub RefreshAllPortsTouchedByCommit() {
-#
-# given the ports touched by this commit
-# refresh each of them
-#
+sub RefreshAllPortsTouchedByCommit($) {
+	#
+	# given the ports touched by this commit
+	# refresh each of them
+	#
 
-	while (my ($portname, $port) = each %PortsChecked) {
+	my $PortsRef	= shift;
+	my %Ports		= %{$PortsRef};
+
+	#
+	# refresh each and every port we are told about
+	#
+	print "# # # # Refreshing ports # # # #\n\n";
+	while (my ($portname, $port) = each %Ports) {
 		print "port = $portname, port_id = '$port->{id}', category_id='$port->{category_id}', needs_refresh='$port->{needs_refresh}'\n";
 
 		$port->RefreshFromFiles();
 	}
-}
-
-sub GetPort($;$) {
-	my $port = shift;
-	my $dbh  = shift;
-	my $sth;
-	my $sql;
-	my @row;
-
-	$sql = "select GetPort('$port')";
-	print "GetPort sql = $sql\n";
-
-	$sth = $dbh->prepare($sql);
-	$sth->execute || die "Could not execute SQL $sql ... maybe invalid?";
-
-	@row = $sth->fetchrow_array();
-
-	$sth->finish();
-
-	return $row[0];
-}
-
-sub GetCategory($;$) {
-	my $category = shift;
-	my $dbh      = shift;
-	my $sth;
-	my $sql;
-	my @row;
-
-	$sql = "select GetCategory('$category'::text)";
-	print "GetCategory sql = $sql\n";
-
-	$sth = $dbh->prepare($sql);
-	$sth->execute || die "Could not execute SQL $sql ... maybe invalid?";
-
-	@row = $sth->fetchrow_array();
-
-	$sth->finish();
-
-	return $row[0];
-}
-
-sub CreatePort($;$;$;$) {
-#
-# create a new entry in the Ports table and return the id
-# The other fields will be populated later using the same
-# mechanism as is used for updating a port.
-#
-	my $category_name	= shift;
-	my $port_name		= shift;
-	my $category_id		= shift;
-	my $dbh				= shift;
-
-	my $port;
-	my $element;
-	my $element_id;
-
-	#
-	# obtain the element which corresponds to this port
-	#
-
-	$element = FreshPorts::Element->new($dbh);
-	$element->{pathname} = "/$FreshPorts::Config::ports_prefix/$category_name/$port_name";
-
-	$element_id = $element->FetchByName();
-
-	if (!$element_id) {
-		# create the element
-		$element_id = $element->save;
-	}
-
-	$port = FreshPorts::Port->new($dbh);
-	$port->{element_id}  = $element_id;
-	$port->{category_id} = $category_id;
-	$port->{category}    = $category_name;
-	$port->{name}        = $port_name;
-
-	$port->save();
-
-	return $port;
-}
-
-sub CreateCategory($;$) {
-	my $name	= shift;
-	my $dbh		= shift;
-
-	my $category;
-
-	$category = FreshPorts::Category->new($dbh);
-	$category->{name}		= $name;
-	$category->{is_primary}	= 1;
-	$category->save;
-
-	return $category->{id};
 }
 
 FreshPorts::Utilities::InitSyslog();

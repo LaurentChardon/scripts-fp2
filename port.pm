@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# $Id: port.pm,v 1.13 2001-11-23 06:39:53 dan Exp $
+# $Id: port.pm,v 1.14 2001-11-25 03:36:52 dan Exp $
 #
 
 package FreshPorts::Port;
@@ -26,7 +26,7 @@ sub _initialize {
 	# the locations of the master port files required to
 	# refresh this port.
 	#
-	$this->{needs_refresh} = -1;
+	$this->{needs_refresh}		= 0;
 
 #	$this->{portname}			= '';
 	$this->{short_description}	= '';
@@ -134,14 +134,21 @@ print "sql = $sql\n";
 		# we are inserting
 		# do we really need to quote these things?
 
-		if (!$this->{element_id} || !$this->{category_id} || !$this->{category} || !$this->{name}) {
+		if (!$this->{category_id} && $this->{partialpathname}) {
+			#
+			# we have a partial name but no element.
+			# let's get the element
+			#
+			$this->{element_id} = $this->_FetchElementIDByPartialPathName();
+		}
+
+		if (!$this->{element_id} || !$this->{category_id}) {
 			Sys::Syslog::syslog('warning', "Cannot create new port.  Insufficient data");
 			die "Cannot create new port.  Insufficient data";
 		}
 
-		
-
-# update this sql to insert all fields?
+		#
+		# update this sql to insert all fields?
 
 		$this->{id} = FreshPorts::Database::GetNextValue($FreshPorts::Constants::ports_seq, $dbh);
 
@@ -151,7 +158,14 @@ print "sql = $sql\n";
 		# that sounds odd... but anything can happen...
 		#
 		if (!defined($this->{deleted})) {
-			$this->{needs_refresh} = $this->GetNeedsRefreshForNewPort();
+			if (!defined($this->{name}) || !defined($this->{category})) {
+				Sys::Syslog::syslog('warning', "Cannot _GetNeedsRefreshForNewPort.  Insufficient data");
+				die "Cannot _GetNeedsRefreshForNewPort.  Insufficient data";
+			}
+			if (!$this->_GetNeedsRefreshForNewPort()) {
+				Sys::Syslog::syslog('warning', "Cannot _GetNeedsRefreshForNewPort.  Fetch failed");
+				die "Cannot _GetNeedsRefreshForNewPort.  Fetch failed";
+			}
 		}
 
 		$sql = "insert into ports (id, element_id, category_id, needs_refresh) values ( \
@@ -201,13 +215,16 @@ sub FetchByID {
 
 	$sth->finish();
 
-	$this->_GetValuesFromRow($row);
+	# no sense setting values if we didn't get anything...
+	if ($row) {
+		$this->_GetValuesFromRow($row);
+	}
 
 	return $this->{id};
 }
 
 sub FetchByPartialPathName {
-	# obtain the element based on the pathname supplied
+	# obtain the port based on the pathname supplied
 	my $this = shift;
 
 	my $dbh;
@@ -223,10 +240,10 @@ sub FetchByPartialPathName {
 
  	my $element;
 
-	$element = FreshPorts::Element->new($dbh);
-	$element->{pathname} = "$FreshPorts::Config::ports_prefix/$this->{partialpathname}";
-	$this->{element_id} = $element->FetchByName();
-
+	$this->{element_id} = $this->_FetchElementIDByPartialPathName();
+	#
+	# if there is no element corresponding to this port anme, we can't find anything...
+	#
 	if (!$this->{element_id}) {
 		return $this->{element_id};
 	}
@@ -249,17 +266,38 @@ sub FetchByPartialPathName {
 
 	$sth->finish();
 
-	$this->_GetValuesFromRow($row);
+	# no sense setting values if we didn't get anything...
+	if ($row) {
+		$this->_GetValuesFromRow($row);
+	}
 
 	return $this->{id};
 }
 
-sub GetNeedsRefreshForNewPort {
-#
-# This function may be deprecated.
-#
-
+sub _FetchElementIDByPartialPathName {
+	# obtain the element based on the pathname supplied
 	my $this = shift;
+
+	my $dbh;
+
+	$dbh = $this->{dbh};
+	if (!$dbh) {
+		die " no database handle!";
+	}
+
+ 	my $element;
+
+	$element = FreshPorts::Element->new($dbh);
+	$element->{pathname} = "$FreshPorts::Config::ports_prefix/$this->{partialpathname}";
+	$this->{element_id} = $element->FetchByName();
+
+	return $this->{element_id};
+}
+
+sub _GetNeedsRefreshForNewPort {
+	my $this = shift;
+
+	my $result = 0;	# return 0 for fail
 	#
 	# When a new port is imported, we need to get the
 	# makefile and determine whether or not this port
@@ -274,9 +312,13 @@ sub GetNeedsRefreshForNewPort {
 	# and using that to determine the other information.
 
 
-	my $needs_refresh	= 0;
-	my $category		= $this->{category};
-	my $port			= $this->{name};
+	my $category	= $this->{category};
+	my $port		= $this->{name};
+
+	if (!defined($category) || !defined($port)) {
+		Sys::Syslog::syslog('warning', "Cannot _GetNeedsRefreshForNewPort.  Insufficient data");
+		die "Cannot _GetNeedsRefreshForNewPort.  Insufficient data";
+	}
 
 	print "category = $category\n";
 	print "port     = $port\n";
@@ -288,16 +330,34 @@ sub GetNeedsRefreshForNewPort {
 	my $SRCDIR	= "$FreshPorts::Config::ports_prefix/$category/$port";
 	my $FILE	= $FreshPorts::Constants::FILE_MAKEFILE;
 
-	`sh $FreshPorts::Config::scriptpath/fetch-cvs-file.sh $DESTDIR $SRCDIR $FILE`;
+	my $FetchAttempts = 5;
 
-	if (($? >> 8)) {
-		#
-		# This might be a nice place to retry a fetch, or send an email
-		#
-		print "that fetch failed.  What do to?\n";
+	while ($FetchAttempts) {
+		`sh $FreshPorts::Config::scriptpath/fetch-cvs-file.sh $DESTDIR $SRCDIR $FILE`;
 
-		# and we're outta here
-	} else {
+		if (($? >> 8)) {
+			#
+			# This might be a nice place to retry a fetch, or send an email
+			#
+			print "that fetch failed.  What do to?\n";
+
+			# and we're outta here
+			# fetch failed
+			# sleep, then try again
+			Sys::Syslog::syslog('warning', "sleeping after fetch failed for ($DESTDIR $SRCDIR $FILE)");
+			print "fetch failed, sleeping...\n";
+			sleep 10;
+			$FetchAttempts--;
+
+		} else {
+			# fetch worked
+			last;
+		}
+    }
+
+	#
+	# if we succeeded in our fetch..
+	if ($FetchAttempts) {
 		print "now doing a chdir to $DESTDIR\n";
 		chdir "$DESTDIR";
 
@@ -340,7 +400,7 @@ sub GetNeedsRefreshForNewPort {
 				my $index = $FreshPorts::Constants::FilesWhichPromptRefresh{$entry};
 				if ($index) {
 				print "index = $index\n";
-				$needs_refresh |= $index;
+				$this->{needs_refresh} |= $index;
 				}
 			} else {
 				print "this port uses $DESCR\n";
@@ -354,11 +414,13 @@ sub GetNeedsRefreshForNewPort {
 				my $index = $FreshPorts::Constants::FilesWhichPromptRefresh{$entry};
 				if ($index) {
 					print "index = $index\n";
-					$needs_refresh |= $index;
+					$this->{needs_refresh} |= $index;
 				}
 			} else {
 				print "this port uses $COMMENT\n";
 			}
+
+			$result = 1; # if we get here, we did good..
 
 		} else {
 			print "error executing make command: " . ($? >> 8) . "\n";
@@ -367,9 +429,9 @@ sub GetNeedsRefreshForNewPort {
 		}
 	}
 
-	print "\nand from GetNeedsRefreshForNewPort we get needs_refresh = $needs_refresh\n";
+	print "\nand from _GetNeedsRefreshForNewPort we get needs_refresh = $this->{needs_refresh}\n";
 
-	return $needs_refresh;
+	return $result;
 }
 
 
@@ -648,5 +710,7 @@ sub RefreshFromFiles() {
 
 	return $result;
 }
+
+FreshPorts::Utilities::InitSyslog();
 
 1;

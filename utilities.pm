@@ -1,8 +1,9 @@
-# $Id: utilities.pm,v 1.4 2001-11-23 04:51:39 dan Exp $
+# $Id: utilities.pm,v 1.5 2001-11-25 03:36:52 dan Exp $
 #
 
 package FreshPorts::Utilities;
 
+require Sys::Syslog;
 
 # =================================
 
@@ -33,7 +34,7 @@ sub ReadFile($) {
 $FreshPorts::Utilities::syslog_init = 0;
 
 sub InitSyslog() {
-	if ($FreshPorts::Utilities::syslog_init) {
+	if (!$FreshPorts::Utilities::syslog_init) {
 		Sys::Syslog::setlogsock('unix');
 		Sys::Syslog::openlog('FreshPorts', 'cons, pid', 'user');
 		$FreshPorts::Utilities::syslog_init = 1;

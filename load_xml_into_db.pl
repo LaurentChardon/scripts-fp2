@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# $Id: load_xml_into_db.pl,v 1.19 2001-11-24 21:41:50 dan Exp $
+# $Id: load_xml_into_db.pl,v 1.20 2001-11-25 03:36:51 dan Exp $
 #
 #
 # Parse cvs messages in XML format so they can be put into a database
@@ -216,14 +216,12 @@ sub handle_update_end
 	# Now we want to update the Ports subsection of the database based upon
 	# the list of files we have.
 
-
-	FreshPorts::VerifyPort::SaveChangesToPortsTree($commit_log_id, \@Files, $dbh);
+	my %Ports;	# array of port objects touched by this message.
 
 	# this is where we set the needs_refresh field for each port touched by this commit.
 	# once that is done, we commit.
-	FreshPorts::VerifyPort::SetNeedsRefreshForPortsAssociatedWithMessage($commit_log_id, \@Files, $dbh);
+	%Ports = FreshPorts::VerifyPort::SaveChangesToPortsTree($commit_log_id, \@Files, $dbh);
 	$dbh->commit();
-
 
 	print "\n --- end of this update --- \n";
 
@@ -254,15 +252,16 @@ sub handle_update_end
 	undef $Updates{MessageId};
 	undef $Updates{MessageToAll};
 	undef $Updates{MessageSubject};
+
+	# now we should refresh all the ports associated with this commit
+
+	FreshPorts::VerifyPort::RefreshAllPortsTouchedByCommit(\%Ports);
+	$dbh->commit();
 }
 
 sub handle_updates_end {
 	print "\n\n *** end of all updates *** \n";
 
-	# now we should refresh all the ports associated with this commit
-
-	FreshPorts::VerifyPort::RefreshAllPortsTouchedByCommit();
-	$dbh->commit();
 }
 
 sub FileActionValid($) {
