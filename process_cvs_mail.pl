@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 #
-# $Id: process_cvs_mail.pl,v 1.2 2001-11-16 18:38:02 dan Exp $
+# $Id: process_cvs_mail.pl,v 1.3 2001-11-16 18:40:26 dan Exp $
 #
 # Process incoming mail from cvs-all mailing list at freebsd.org
 # and convert it to XML output according to the FreshPorts DTD.
@@ -348,11 +348,6 @@ sub GetLog {
         # List of phrases marking the end of the log
         my (@log_endings) = (   '  Revision',
 				'To Unsubscribe' );
-# 				'  PR:',
-#				'  Submitted by:',
-#				'  Approved by:',
-#				'  Reviewed by:',
-#				'To Unsubscribe' );
 
         my (@lines) = split("\n", $message);
 
