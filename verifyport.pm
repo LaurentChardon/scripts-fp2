@@ -38,16 +38,40 @@ sub RefreshPortsAssociatedWithMessage($;$) {
 	my $port;			# of the form "$port_id/$category_id"
 
 	my $action;
-	my $path;
+	my $filename;
 	my $revision;
 	my $value;
+
+    my $subtree;
+    my $category_name;
+    my $port_name;
+    my $extra;
 
 	print "\n\nThat message is all done under Commit ID = '$commit_log_id'\n";
 
 	print "the size of \@Files is ", scalar(@{$Files}), "\n";
 	foreach $value (@{$Files}) {
-		($action, $path, $revision) = @$value;
-		print "$action, $path, $revision\n";
+		($action, $filename, $revision) = @$value;
+
+		($subtree, $category_name, $port_name, $extra) = split/\//,$filename, 4;
+		print "$action, $filename, $revision, $subtree, $category_name, $port_name, $extra\n";
+
+		# is this file is in the ports tree?
+		if ($subtree eq $FreshPorts::Config::ports_prefix) {
+			print "yes, this file is in the ports tree\n";
+			$index = $FreshPorts::Constants::FilesWhichPromptRefresh{$extra};
+			if ($index) {
+				print "yes, it's a File Which Prompts Refresh\n";
+				# find the port for this filename....
+				$port = $PortsChecked{"$category_name/$port_name"};
+				if ($port) {
+					$port->{needs_refresh} |= $index;
+				} else {
+					Sys::Syslog::syslog('warning', "could not find port '$category/$port' in hash.");
+					die "could not find port '$category/$port' in hash.";
+				}
+			}
+		}
 	}
 
 
@@ -56,7 +80,7 @@ sub RefreshPortsAssociatedWithMessage($;$) {
 	print "There are ", scalar(keys %PortsChecked), " key/value pairs in %PortsChecked\n";
 
 	while (($portname, $port) = each %PortsChecked) {
-		print "port = $portname, port_id = '$port->{id}', category_id='$port->{category_id}'\n";
+		print "port = $portname, port_id = '$port->{id}', category_id='$port->{category_id}', needs_refresh='$port->{needs_refresh}'\n";
 
 #		MarkPortAsRefreshNeeded($port_id, $commit_id, $action, $entry, $dbh);
 	}
@@ -74,12 +98,6 @@ sub EnsureCategoryAndPortExist($;$;$) {
 	$element_id	= shift;
 	$filename	= shift;
 	$dbh		= shift;
-
-	#
-	# These are the directories/entries
-	# which FreshPorts does not track
-	#
-	my $ignoredirs = "Attic|distfiles|Mk|Tools|Templates|Makefile|pkg";
 
 
 	my $subtree;
@@ -99,7 +117,7 @@ sub EnsureCategoryAndPortExist($;$;$) {
 		return;
 	}
 
-	if (index($ignoredirs, $category_name) != -1 || index($ignoredirs, $port_name) != -1) {
+	if (index($FreshPorts::Constants::IgnoredItems, $category_name) != -1 || index($FreshPorts::Constants::IgnoredItems, $port_name) != -1) {
 		# certain items are definitely not ports.
 		# so we don't care about them here
 		return;
