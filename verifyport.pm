@@ -217,6 +217,8 @@ sub SaveChangesToPortsTree($;$;$) {
 
 	_RecordPortFilesTouchedByThatCommit($commit_log_id, $Files, \%ListOfPorts, $dbh);
 
+	_DeleteDeletedPorts(\%ListOfPorts, $dbh);
+
 	return %ListOfPorts;
 }
 
@@ -316,6 +318,36 @@ sub RefreshAllPortsTouchedByCommit($) {
 		$port->RefreshFromFiles();
 	}
 }
+
+sub _DeleteDeletedPorts($;$) {
+	#
+	# For each deleted port, delete the element which corresponds to that port
+	#
+
+	my $PortsRef	= shift;
+	my %Ports		= %{$PortsRef};
+	my $dbh			= shift;
+
+	my $element = FreshPorts::Element->new($dbh);
+
+	#
+	# refresh each and every port we are told about
+	#
+	print "# # # # Deleting deleted ports # # # #\n\n";
+	while (my ($portname, $port) = each %Ports) {
+		if (defined($port->{deleted})) {
+			print "deleting : port = $portname, port_id = '$port->{id}', ' element_id = $port->{element_id}'\n";
+
+			$element->{id} = $port->{element_id};
+			if (defined($element->FetchByID())) {
+				$element->{status} = $FreshPorts::Element::Deleted;
+				$element->save();
+			}
+		}
+	}
+}
+
+
 
 FreshPorts::Utilities::InitSyslog();
 
