@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# $Id: load_xml_into_db.pl,v 1.10 2001-11-20 17:04:31 dan Exp $
+# $Id: load_xml_into_db.pl,v 1.11 2001-11-20 17:08:34 dan Exp $
 #
 #
 # Parse cvs messages in XML format so they can be put into a database
@@ -690,7 +690,7 @@ sub SystemBranchIDGetOrCreate($;$;$) {
 
 	my $SystemBranchID;
 
-	$sql = "select SystemBranchIDGet($system_id, " . $dbh->quote($branch_name) . :)";
+	$sql = "select SystemBranchIDGet($system_id, " . $dbh->quote($branch_name) . ")";
 
 	print "sql = '$sql'\n";
 
@@ -708,7 +708,7 @@ sub SystemBranchIDGetOrCreate($;$;$) {
 		$sql = "insert into system_branch (id, system_id, branch_name) values " .
 					" ($SystemBranchID, $SystemID, " . $dbh->quote($branch_name) . ")";
 
-		$sth = $dbh->prepare($sql)
+		$sth = $dbh->prepare($sql);
 		if (!$sth->execute) {
 			Sys::Syslog::syslog('warning', "Could not execute SQL $sql");
 			die "Could not execute SQL $sql ... maybe invalid?";
