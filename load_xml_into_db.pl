@@ -1,0 +1,696 @@
+#!/usr/bin/perl -w
+#
+# $Id: load_xml_into_db.pl,v 1.1.1.1 2001-11-05 05:16:32 dan Exp $
+#
+#
+# Parse cvs messages in XML format so they can be put into a database
+# Version 4 - uses DTD version 0.12
+#
+#
+# return values
+#  1 - incorrect calling of script.  check your parameters
+#  2 - this message id is already in the database
+#  3 - No SystemID found for OS  - this OS     isn't being followed by FreshPorts
+#  4 - No SystemVersionID found  - this branch isn't being followed by FreshPorts
+#  5 - invalid file action found - the file action found wasn't recognized. Check the DTD.
+#  6 - element id was not found  - possible problem adding new element to database.
+#  7 - this messages does not deal with the ports subsystem.
+#
+
+#use strict;
+
+require Sys::Syslog;
+
+use verifyport;
+use config;
+use db_utils;
+
+use XML::Node;
+use DBI;
+
+my $commit_log_id	= 0;
+my $debug			= 0;
+
+my $SystemID;			# the system id for this update.  Usually 'FreeBSD' => 1
+my $SystemVersionID;	# the system version id for this update.  Usually 'HEAD' => 1
+
+my $dbh;
+
+#
+# a file can be added to the repository, deleted (removed) from the repository,
+# or modified in the repository.
+#
+my %ValidFileActions = ("Add" => "A", "Remove" => "R", "Modify" => "M");
+
+
+Sys::Syslog::setlogsock('unix');
+Sys::Syslog::openlog('FreshPorts', 'cons, pid', 'user');
+
+&main;
+exit;
+
+#####
+# Main Processing Routine
+##### 
+
+sub main {
+
+   my $inputfile;
+   my %Updates;
+
+   my $p = XML::Node->new();
+
+   if (($#ARGV+1) >= 1) {
+      $inputfile = $ARGV[0];
+      if (-f $inputfile) {
+      } else {
+         print "please specify an input file name which exists\n";
+         exit 1;
+      }
+      if (($#ARGV+1) >= 2) {
+         if ($ARGV[1] eq '-D') {
+            print "debugging....\n";
+            $debug = 1;
+         }
+      }
+   } else {
+      print "USAGE : $0 INPUTFILE [-D] <-D means debug, don't actually update the database>\n";
+      exit 1;
+   }
+
+   SetupParser(Updates, $p);
+
+   print "Processing file [$inputfile]...\n";
+
+   $dbh = GetDBHandle();
+   if ($dbh->{Active}) {
+
+      $p->parsefile($inputfile);
+
+#   $dbh->rollback();
+      $dbh->commit();
+
+      $dbh->disconnect();
+   }
+}
+
+sub SetupParser($;$) {
+   $Updates = shift();
+   $p       = shift();
+
+   $p->register(">UPDATES",									"start" => \&handle_updates_start);
+   $p->register(">UPDATES>UPDATE",							"start" => \&handle_update_start);
+
+   $p->register(">UPDATES>UPDATE>DATE:Year",				"attr" => \$Updates{dateyear});
+   $p->register(">UPDATES>UPDATE>DATE:Month",				"attr" => \$Updates{datemonth});
+   $p->register(">UPDATES>UPDATE>DATE:Day",					"attr" => \$Updates{dateday});
+
+   $p->register(">UPDATES>UPDATE>TIME:Hour",				"attr" => \$Updates{timehour});
+   $p->register(">UPDATES>UPDATE>TIME:Minute",				"attr" => \$Updates{timeminute});
+   $p->register(">UPDATES>UPDATE>TIME:Second",				"attr" => \$Updates{timesecond});
+   $p->register(">UPDATES>UPDATE>TIME:Timezone",			"attr" => \$Updates{timezone});
+
+   $p->register(">UPDATES>UPDATE>OS:Id",					"attr" => \$Updates{os});
+   $p->register(">UPDATES>UPDATE>OS:Branch",				"attr" => \$Updates{branch});
+   $p->register(">UPDATES>UPDATE>OS",						"end"  => \&handle_os_end);
+        
+   $p->register(">UPDATES>UPDATE>LOG",						"char" => \$Updates{log});
+
+   $p->register(">UPDATES>UPDATE>PEOPLE>UPDATER:Handle",	"attr" => \$Updates{committer});
+   $p->register(">UPDATES>UPDATE>PEOPLE>UPDATER",			"end"  => \&handle_updater_end);
+
+   $p->register(">UPDATES>UPDATE>MESSAGE:Id",				"attr" => \$Updates{MessageId});
+
+   $p->register(">UPDATES>UPDATE>MESSAGE:Subject",			"attr" => \$Updates{MessageSubject});
+
+
+   $p->register(">UPDATES>UPDATE>MESSAGE>DATE:Year",		"attr" => \$Updates{messageyear});
+   $p->register(">UPDATES>UPDATE>MESSAGE>DATE:Month",		"attr" => \$Updates{messagemonth});
+
+   $p->register(">UPDATES>UPDATE>MESSAGE>DATE:Day",			"attr" => \$Updates{messageday});
+
+   $p->register(">UPDATES>UPDATE>MESSAGE>TIME:Hour",		"attr" => \$Updates{messagehour});
+   $p->register(">UPDATES>UPDATE>MESSAGE>TIME:Minute",		"attr" => \$Updates{messageminute});
+   $p->register(">UPDATES>UPDATE>MESSAGE>TIME:Second",		"attr" => \$Updates{messagesecond});
+   $p->register(">UPDATES>UPDATE>MESSAGE>TIME:Timezone",	"attr" => \$Updates{messagezone});
+
+   $p->register(">UPDATES>UPDATE>MESSAGE>TO:Email",			"attr" => \$Updates{MessageTo});
+   $p->register(">UPDATES>UPDATE>MESSAGE>TO",				"end"  => \&handle_messageto_end);
+
+   $p->register(">UPDATES>UPDATE>MESSAGE",					"end"  => \&handle_message_end);
+
+   $p->register(">UPDATES>UPDATE>FILES>FILE:Path",			"attr" => \$Updates{FilePath});
+   $p->register(">UPDATES>UPDATE>FILES>FILE:Action",		"attr" => \$Updates{FileAction});
+   $p->register(">UPDATES>UPDATE>FILES>FILE:Revision",		"attr" => \$Updates{FileRevision});
+
+   $p->register(">UPDATES>UPDATE>FILES>FILE",				"end"  => \&handle_file_end);
+
+
+   $p->register(">UPDATES>UPDATE",							"end" => \&handle_update_end);
+   $p->register(">UPDATES",									"end" => \&handle_updates_end);
+}
+
+sub handle_updates_start
+{
+   print "\n\n *** start of all updates ***\n";
+}
+
+sub handle_update_start
+{
+	print "\n --- start of an update --- \n";
+
+	#
+	# make sure we initialize things correctly for each message.
+	# this might not be much use when doing just one message
+	# at a time.  But if we start processing multiple messages
+	# with each invocation of this script, it might be useful
+	#
+	FreshPorts::VerifyPort::InitialiseNewMessage();
+} 
+
+sub handle_os_end {
+   print "\n --- end of OS --- \n";
+
+   # We know what branch this message is updating. Let's grab the IDs we will need.
+   $SystemID = SystemIDGet($Updates{os}, $dbh);
+   if (!defined($SystemID)) {
+      $! = 3;
+      Sys::Syslog::syslog('warning', "No SystemID found for OS = '$Updates{os}'\n");
+      print "No SystemID found for OS = '$Updates{os}'\n";
+      die   "No SystemID found for OS = '$Updates{os}'\n";
+   }
+   
+   $SystemVersionID = SystemVersionIDGet($SystemID, $Updates{branch}, $dbh);
+   if (!defined($SystemVersionID)) {
+      $! = 4;
+      Sys::Syslog::syslog('warning', "No SystemVersionID found for OS = '$Updates{branch}'\n");
+      print "No SystemVersionID found for OS = '$Updates{branch}'\n";
+      die   "No SystemVersionID found for OS = '$Updates{branch}'\n";
+   }
+   
+   print "OS is '$Updates{os}' ($SystemID) : branch = $Updates{branch} ($SystemVersionID)\n";
+}
+
+
+sub handle_update_end
+{
+   print "\n --- end of this update --- \n";
+
+   # we don't clear these values until the end of the update
+   undef $Updates{os};
+   undef $Updates{branch};
+   undef $Updates{committerAll};
+   undef $Updates{dateyear};
+   undef $Updates{datemonth};
+   undef $Updates{dateday};
+   undef $Updates{timehour};
+   undef $Updates{timeminute};
+   undef $Updates{timesecond};
+   undef $Updates{timezone};
+   undef $Updates{log};
+
+   undef $Updates{messageyear};
+   undef $Updates{messagemonth};
+   undef $Updates{messageday};
+   undef $Updates{messagehour};
+   undef $Updates{messageminute};
+   undef $Updates{messagesecond};
+   undef $Updates{messagezone};
+   undef $Updates{MessageToAll};
+
+   undef $Updates{MessageSubject};
+
+   undef $Updates{MessageId};
+   undef $Updates{MessageToAll};
+   undef $Updates{MessageSubject};
+}
+
+sub handle_updates_end {
+   print "\n\n *** end of all updates *** \n";
+}
+
+sub FileActionValid($) {
+   my $FileAction = shift;
+
+   return $ValidFileActions{$FileAction};
+}
+
+
+sub handle_file_end
+{
+	#
+	# This is where we would update commit_log_element
+	#
+	my $NewRevision = 0;
+	my $fileaction;
+
+	print "File = [$Updates{FileAction} : $Updates{FilePath}";
+
+	#
+	# we only get a FileRevision for Modify and Add
+	#
+
+	if ($Updates{FileAction} eq $FreshPorts::Config::ADD || $Updates{FileAction} eq $FreshPorts::Config::MODIFY) {
+		$NewRevision = 1;
+		print " : $Updates{FileRevision}";
+	}
+
+	print "]\n";
+
+	$fileaction = FileActionValid($Updates{FileAction});
+	print "FileActionValid ==> " . $fileaction . "\n";
+
+	if (!$fileaction) {
+		$! = 5;
+		Sys::Syslog::syslog('warning', "invalid file action found");
+		print "invalid file action found\n";
+		die   "invalid file action found\n";
+	}
+
+	if (!defined($commit_log_id)) {
+		return;
+	}
+
+	my $filename     = $Updates{FilePath};
+	my $revisionname = $Updates{FileRevision};
+
+	my $element_id = Pathname_ID($filename, $dbh);
+	if (!defined($element_id)) {
+		# add the element to the tree
+		$element_id = Element_Add($filename, "F", $dbh);
+	}
+
+	#
+	# if we failed to created an element, we should stop
+	#
+	if (!defined($element_id)) {
+		$! = 6;
+		Sys::Syslog::syslog('warning', "sorry, but I should have had an element_id for '$filename', but I didn't.\n");
+		print "sorry, but I should have had an element_id for '$filename', but I didn't.\n";
+		die   "sorry, but I should have had an element_id for '$filename', but I didn't.\n";
+	}
+
+	#
+	# This is where we should start looking at $filename
+	# to see if it's within the ports subtree. If so,
+	# we need to ensure the category and port both exist.
+	# Logically, we *should* only ever have to do this
+	# if we are doing an Add.  But if the mail messages
+	# arrive in the wrong order, we could get a modify
+	# before the Add arrives.  Therefore,  do this for
+	# every file.  See EnsureCategoryAndPortExist for
+	# details.
+	#
+
+print "element_id='$element_id'\nfilename='$filename'\n";
+	FreshPorts::VerifyPort::EnsureCategoryAndPortExist($element_id, $filename, $dbh);
+
+	#
+	# the ElementRevision entry must always exist, regardless
+	# of what we are doing.  If we are deleting an item, it may
+	# have not yet been added.  This may be because of mail
+	# messages being recieved out of order or because of items
+	# not on file because their creation pre-dates this database.
+	#
+	if ($NewRevision) {
+		#
+		# we are creating a new revision.  insert it.
+		#
+		ElementRevisionInsert($element_id, $revisionname, $dbh);
+	} else {
+		#
+		# we aren't creating a new revision.  we must be deleting...
+		# but perhaps not... but make sure that revision exists.
+		#
+		if (!ElementRevisionExists($element_id, $revisionname, $dbh)) {
+			ElementRevisionInsert($element_id, $revisionname, $dbh);
+		}
+	}
+
+	CommitLogElementsInsert($commit_log_id, $element_id, $revisionname, $fileaction, $dbh);
+
+	#
+	# when adding new elements, be sure to record the new revision name.
+	#
+	if ($NewRevision) {
+		SystemVersionElementInsert($SystemVersionID, $element_id, $revisionname, $dbh);
+	}
+
+	undef $Updates{FileAction};
+	undef $Updates{FilePath};
+	undef $Updates{FileRevision};
+}
+
+sub CommitLogElementsInsert($;$;$;$;$) {
+   my $CommitLogID  = shift;
+   my $ElementID    = shift;
+   my $RevisionName = shift;
+   my $FileAction   = shift;
+   my $dbh          = shift;
+
+   my $sth;
+   my $sql;
+
+   my $QuotedRevisionName = $dbh->quote($RevisionName);
+   my $QuotedFileAction   = $dbh->quote($FileAction);
+
+   $sql = "insert into commit_log_elements (commit_log_id, element_id, revision_name, change_type) \
+             values ($CommitLogID, $ElementID, $QuotedRevisionName, $QuotedFileAction)";
+
+   print "sql = '$sql'\n";
+
+   if (!$debug) {
+
+      $sth = $dbh_pg->prepare($sql);
+      if (!$sth->execute) {
+           Sys::Syslog::syslog('warning', "Could not execute SQL");
+           die "Could not execute SQL $sql ... maybe invalid?";
+           }
+
+      $sth->finish();
+   }
+}
+
+sub ElementRevisionExists($;$;$) {
+   my $ElementID    = shift;
+   my $RevisionName = shift;
+   my $dbh          = shift;
+
+   my $sth;
+   my $sql;
+   my @row;
+
+   # quote everything going to the database
+   my $QuotedRevisionName = $dbh->quote($RevisionName);
+   $sql = "select count(*) from element_revision where element_id = $ElementID and revision_name = $QuotedRevisionName";
+   $sth = $dbh->prepare($sql);
+   if (!$sth->execute())  {
+         Sys::Syslog::syslog('warning', "Could not execute sql");
+         die "Could not execute sql = $sql in ElementRevsionExists";
+         }
+   @row = $sth->fetchrow_array();   
+   $sth->finish();
+
+   return $row[0];
+}
+
+
+sub ElementRevisionInsert($;$;$) {
+   my $ElementID    = shift;
+   my $RevisionName = shift;
+   my $dbh          = shift;
+
+   my $sth;
+   my $sql;
+
+   # quote everything going into the database
+   my $QuotedRevisionName = $dbh->quote($RevisionName);
+
+   $sql = "insert into element_revision (element_id, revision_name) values ($ElementID, $QuotedRevisionName)";
+ 
+   print "sql = '$sql'\n";
+ 
+   if (!$debug) {
+      $sth = $dbh_pg->prepare($sql);
+      if (!$sth->execute) {
+              Sys::Syslog::syslog('warning', "Could not execute sql");
+              die "Could not execute SQL $sql ... maybe invalid?";
+              }
+
+   $sth->finish();
+   }
+}
+
+sub handle_message_end {
+   # we have the end of the main part of the mail message.  All that's left are the files.
+   # let's commit this stuff so we have a commit_log_id.
+
+   # But for the first edition of FreshPorts2,
+   # we only want ports. nothing but ports.
+   # The criteria for that is the subject must start with
+   # "cvs commit: ports/".
+
+   print "OS             = [$Updates{os}]\n";
+   print "Branch         = [$Updates{branch}]\n";
+   print "Committer      = [$Updates{committerAll}]\n";
+   print "Date           = [" . sprintf "%04u/%02u/%02u %02u:%02u:%02u %s", $Updates{dateyear}, $Updates{datemonth}, $Updates{dateday}, $Updates{timehour}, $Updates{timeminute}, $Updates{timesecond}, $Updates{timezone} . "]\n";
+   print "Log            = [$Updates{log}]\n";
+
+   print "MessageId      = [$Updates{MessageId}]\n";
+
+   print "MessageDate    = [" . sprintf "%04u/%02u/%02u %02u:%02u:%02u %s", $Updates{messageyear}, $Updates{messagemonth}, $Updates{messageday}, $Updates{messagehour}, $Updates{messageminute}, $Updates{messagesecond}, $Updates{messagezone} . "]\n";
+   print "MessageTo      = [$Updates{MessageToAll}]\n";
+   print "MessageSubject = [$Updates{MessageSubject}]\n";
+
+   if (!($Updates{MessageSubject} =~ m/ports/)) {
+      print "not a ports tree commit.  we'll just exit now shall we?\n";
+      exit 7;
+   }
+
+   # use this information to update the database
+   print "into handle_message_end, let's save that message now!\n\n";
+
+   if (!$debug) {
+      $commit_log_id = SaveUpdateToDB();
+   }
+
+   if (!defined($commit_log_id)) {
+      print "no commit id returned.  we'll just exit now shall we?\n";
+      exit 2;
+   }
+}
+
+sub handle_updater_end {
+    if (defined($Updates{committerAll})) {
+       $Updates{committerAll} .= ", " . $Updates{committer};   
+    } else {
+       $Updates{committerAll} = $Updates{committer};   
+    }
+    print "found Committer= [$Updates{committerAll}]\n";
+}
+
+sub handle_messageto_end
+{
+    if (defined($Updates{MessageToAll})) {
+       $Updates{MessageToAll} .= ", " . $Updates{MessageTo};
+    } else {
+       $Updates{MessageToAll} = $Updates{MessageTo};
+    }
+    print "found To       = [$Updates{MessageToAll}]\n";
+
+
+}
+
+sub GetDBHandle {
+   $dbh_pg = DBI->connect('DBI:Pg:dbname=' . $FreshPorts::Config::dbname, $FreshPorts::Config::user, $FreshPorts::Config::password);
+   if ($dbh_pg->{Active}) {
+      $dbh_pg->{AutoCommit} = 0;
+
+      if (!$dbh_pg) {
+         Sys::Syslog::syslog('warning', "could not connect to FreshPorts2");
+         die "could not connect to FreshPorts2\n";
+      }
+   }
+
+   return $dbh_pg;
+}
+
+sub SaveUpdateToDB {
+   my $sth;
+   my $sql;
+   my @row;
+
+   my $temp;
+
+   my $message_id      = $dbh->quote($Updates{MessageId});
+
+   my $existing_commit_id = GetExistingMessageID($message_id, $dbh);
+
+   if (defined($existing_commit_id)) {
+      Sys::Syslog::syslog('warning',"message $message_id has already been added to the database");
+      print "message $message_id has already been added to the database\n";
+      my $nullvalue;
+      return $nullvalue;
+   }
+
+
+   my $id = FreshPorts::Database::GetNextValue($FreshPorts::Config::commit_log_seq, $dbh);
+
+   $message_date       = $dbh->quote(
+                            sprintf "%04u/%02u/%02u %02u:%02u:%02u %s", 
+                            $Updates{messageyear}, $Updates{messagemonth},  $Updates{messageday}, 
+                            $Updates{messagehour}, $Updates{messageminute}, $Updates{messagesecond}, 
+                            $Updates{messagezone});
+
+   my $message_subject = $dbh->quote($Updates{MessageSubject});
+   my $date_added      = "now()";
+   my $commit_date     = $dbh->quote(
+                            sprintf "%04u/%02u/%02u %02u:%02u:%02u %s", 
+                            $Updates{dateyear}, $Updates{datemonth}, $Updates{dateday}, 
+                            $Updates{timehour}, $Updates{timeminute}, $Updates{timesecond}, 
+                            $Updates{timezone});
+   my $committer       = $dbh->quote($Updates{committer});
+   my $description     = $dbh->quote($Updates{log});
+   
+   $sql = "insert into commit_log (id, message_id, message_date, message_subject, date_added, commit_date, committer, description, system_version_id) 
+                   values ($id, $message_id, $message_date, $message_subject, $date_added, $commit_date, $committer, $description, $SystemVersionID)";
+
+   print "SaveUpdateToDB sql = $sql\n";
+
+   if (!$debug) {
+      $sth = $dbh_pg->prepare($sql);
+      if (!$sth->execute) {
+             Sys::Syslog::syslog('warning', "Could not execute SQL $sql");
+             die "Could not execute SQL $sql ... maybe invalid?";
+             }
+
+      $sth->finish();
+   }
+
+   return $id;
+}
+
+sub GetExistingMessageID($;$) {
+   my $message_id = shift;
+   my $dbh        = shift;
+   my $sth;
+   my $sql;
+   my @row;
+   
+   $sql = "select id from commit_log where message_id = $message_id";
+
+   print "GetExistingMessageID => sql='$sql'\n";
+   
+   $sth = $dbh->prepare($sql);
+   if (!$sth->execute) {
+           Sys::Syslog::syslog('warning', "Could not execute SQL $sql");
+           die "Could not execute SQL $sql ... maybe invalid?";
+   }
+
+   @row = $sth->fetchrow_array();
+   
+   $sth->finish();
+   
+   return $row[0];
+}
+
+sub Pathname_ID($;$) {
+   # obtain the element id from the full path-file name
+   my $filename = shift;
+   my $dbh      = shift;
+
+   my $quoted_filename = $dbh->quote($filename);
+   $sql = "select Pathname_ID($quoted_filename)";
+
+   print "sql = '$sql'\n";
+
+   $sth = $dbh->prepare($sql);
+   if (!$sth->execute) {
+           Sys::Syslog::syslog('warning', "Could not execute SQL $sql");
+           die "Could not execute SQL $sql ... maybe invalid?";
+   }
+
+   @row = $sth->fetchrow_array();
+
+   $sth->finish();
+
+   return $row[0];
+}
+
+sub SystemVersionIDGet($;$;$) {   
+   # obtain the system_version_id for the given version of this system
+   my $system_id    = shift;
+   my $version_name = shift;
+   my $dbh          = shift;
+
+   my $quoted_version_name = $dbh->quote($version_name);
+   $sql = "select SystemVersionIDGet($system_id, $quoted_version_name)";
+
+   print "sql = '$sql'\n";
+
+   $sth = $dbh->prepare($sql);
+   if (!$sth->execute) {
+           Sys::Syslog::syslog('warning', "Could not execute SQL $sql");
+           die "Could not execute SQL $sql ... maybe invalid?";
+   }
+
+   @row = $sth->fetchrow_array();
+
+   $sth->finish();
+
+   return $row[0];
+}
+
+sub SystemIDGet($;$) {
+   # obtain the system_version_id for the given version of this system
+   my $system_name = shift;
+   my $dbh         = shift;
+
+   my $quoted_system_name = $dbh->quote($system_name);
+   $sql = "select SystemIDGet($quoted_system_name)";
+   
+   print "sql = '$sql'\n";
+
+   $sth = $dbh->prepare($sql);
+   $sth->execute ||
+           die "Could not execute SQL $sql ... maybe invalid?";
+
+   @row = $sth->fetchrow_array();
+
+   $sth->finish();
+
+   return $row[0];
+}
+
+sub SystemVersionElementInsert($;$;$;$) {
+   my $SystemVersionID = shift;
+   my $ElementID       = shift;
+   my $RevisionName    = shift;
+   my $dbh             = shift;
+
+   my $sth;
+   my $sql;
+   my @row;
+
+   my $QuotedRevisionName = $dbh->quote($RevisionName);
+   $sql = "select ElementTagSet($SystemVersionID, $ElementID, $QuotedRevisionName)";
+
+   print "sql = '$sql'\n";
+
+   if (!$debug) {
+      $sth = $dbh->prepare($sql);
+      $sth->execute ||
+              die "Could not execute SQL $sql ... maybe invalid?";
+
+      $sth->finish();
+   }
+}
+
+sub Element_Add($;$;$) {
+   my $element_name = shift;
+   my $FileDirFlag  = shift;
+   my $dbh          = shift;
+   
+   my $element_id;
+   my $sth;
+   my $sql;
+   my @row;
+
+   $sql = "select Element_Add('$element_name', '$FileDirFlag')";
+
+   print "sql is $sql\n";
+
+   if (!$debug) {
+      $sth = $dbh->prepare($sql);
+      $sth->execute ||
+              die "Could not execute SQL $sql ... maybe invalid?";
+
+      @row = $sth->fetchrow_array();
+   
+      $sth->finish();
+   }
+
+   $element_id = $row[0];
+
+   return $element_id;
+}
