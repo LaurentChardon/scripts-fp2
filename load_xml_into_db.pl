@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# $Id: load_xml_into_db.pl,v 1.3 2001-11-08 19:03:09 dan Exp $
+# $Id: load_xml_into_db.pl,v 1.4 2001-11-08 20:26:43 dan Exp $
 #
 #
 # Parse cvs messages in XML format so they can be put into a database
@@ -45,9 +45,9 @@ my @Files;				# files affected by this commit
 # a file can be added to the repository, deleted (removed) from the repository,
 # or modified in the repository.
 #
-my %ValidFileActions = (	FreshPorts::Constants::ADD		=> "A",
-							FreshPorts::Constants::REMOVE	=> "R",
-							FreshPorts::Constants::MODIFY	=> "M");
+my %ValidFileActions = (	$FreshPorts::Constants::ADD		=> "A",
+							$FreshPorts::Constants::REMOVE	=> "R",
+							$FreshPorts::Constants::MODIFY	=> "M");
 
 
 Sys::Syslog::setlogsock('unix');
@@ -62,45 +62,48 @@ exit;
 
 sub main {
 
-   my $inputfile;
-   my %Updates;
+	my $inputfile;
+	my %Updates;
 
-   my $p = XML::Node->new();
+	my $p = XML::Node->new();
 
-   if (($#ARGV+1) >= 1) {
-      $inputfile = $ARGV[0];
-      if (-f $inputfile) {
-      } else {
-         print "please specify an input file name which exists\n";
-         exit 1;
-      }
-      if (($#ARGV+1) >= 2) {
-         if ($ARGV[1] eq '-D') {
-            print "debugging....\n";
-            $debug = 1;
-         }
-      }
-   } else {
-      print "USAGE : $0 INPUTFILE [-D] <-D means debug, don't actually update the database>\n";
-      exit 1;
-   }
+	if (($#ARGV+1) >= 1) {
+		$inputfile = $ARGV[0];
+		if (-f $inputfile) {
+		} else {
+			print "please specify an input file name which exists\n";
+			exit 1;
+		}
+		if (($#ARGV+1) >= 2) {
+			if ($ARGV[1] eq '-D') {
+				print "debugging....\n";
+				$debug = 1;
+			}
+		}
+	} else {
+		print "USAGE : $0 INPUTFILE [-D] <-D means debug, don't actually update the database>\n";
+		exit 1;
+	}
 
-   SetupParser(Updates, $p);
+	SetupParser(Updates, $p);
 
-   print "Processing file [$inputfile]...\n";
+	print "Processing file [$inputfile]...\n";
 
 	print "dbname = $FreshPorts::Config::dbname\n";
 
-   $dbh = FreshPorts::Database::GetDBHandle();
-   if ($dbh->{Active}) {
+	$dbh = FreshPorts::Database::GetDBHandle();
+	if ($dbh->{Active}) {
 
-      $p->parsefile($inputfile);
+		$p->parsefile($inputfile);
 
-#   $dbh->rollback();
-      $dbh->commit();
+# hmmm, this might be a good way to debug...
+# issue a rollback after each attempt...
+#
+#		$dbh->rollback();
+		$dbh->commit();
 
-      $dbh->disconnect();
-   }
+		$dbh->disconnect();
+	}
 }
 
 sub SetupParser($;$) {
@@ -328,23 +331,23 @@ sub handle_file_end
 		$ElementAdded = 1;
 	} else {
 		# sometimes the status is wrong.  This is where we correct it.
-#		if ($element->{status} eq $FreshPorts::Element::Active) {
-#			if ($FileAction eq $FreshPorts::Constants::REMOVE) {
-#				$element->{status} = $FreshPorts::Element::Deleted;
-#				$element->save();
-#			}
-#		} else {
-#			if ($element->{status} eq $FreshPorts::Element::Deleted) {
-#				if ($FileAction eq $FreshPorts::Constants::Modify || $FileAction eq $FreshPorts::Constants::Add) {
-#					$element->{status} = $FreshPorts::Element::Active;
-#    	            $element->save();
-#				}
-#			} else {
-#				Sys::Syslog::syslog('warning', "Unknown element->status found.");
-#				print "Unknown element->status found";
-#				die   "Unknown element->status found";
-#			}
-#		}
+		if ($element->{status} eq $FreshPorts::Element::Active) {
+			if ($FileAction eq $FreshPorts::Constants::REMOVE) {
+				$element->{status} = $FreshPorts::Element::Deleted;
+				$element->save();
+			}
+		} else {
+			if ($element->{status} eq $FreshPorts::Element::Deleted) {
+				if ($FileAction eq $FreshPorts::Constants::MODIFY || $FileAction eq $FreshPorts::Constants::ADD) {
+					$element->{status} = $FreshPorts::Element::Active;
+    	            $element->save();
+				}
+			} else {
+				Sys::Syslog::syslog('warning', "Unknown element->status found.");
+				print "Unknown element->status found";
+				die   "Unknown element->status found";
+			}
+		}
 	}
 
 	#
@@ -356,9 +359,6 @@ sub handle_file_end
 		print "sorry, but I should have had an element_id for '$filename', but I didn't.\n";
 		die   "sorry, but I should have had an element_id for '$filename', but I didn't.\n";
 	}
-
-	# sometimes we get things wrong.  This fixes it up
-	FreshPorts::Element::AdjustElementStatus($element, $FileAction);
 
 	#
 	# This is where we should start looking at $filename
