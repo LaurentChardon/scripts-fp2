@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-# $Id: old-freshports.pm,v 1.1 2001-11-09 16:30:15 dan Exp $
+# $Id: old-freshports.pm,v 1.2 2001-11-09 19:36:08 dan Exp $
 #
 # Port Updater for FreshPorts
 # takes output of LogMunger and updates the database
@@ -18,55 +18,6 @@ use port-utils;
 
 my $Debug = 0;
 
-
-#PortCreate ($port, $category, $categoryid, $timestamp, $commitdescription, $dbh) {
-sub PortCreate($;$;$;$;$;$) {
-   my $port              = shift;
-   my $category          = shift;
-   my $categoryid        = shift;
-   my $timestamp         = shift;
-   my $commitdescription = shift;
-   my $dbh               = shift;
-
-
-   my $needs_refresh;
-
-   $needs_refresh = GetNeedsRefreshForNewPort($category, $port);
-
-   # no such port.  create it.
-   my $sql = "insert into ports (name, primary_category_id, " .
-          "date_created, needs_refresh, " .
-          "status, package_exists, short_description) values (";
-
-   # we assume above that the package does not exist until we are told otherwise.
-
-   # we don't get a version when inserting, so we must fake it by supplying a name.
-   # and the date created is this timestamp.  we used to use current_time,
-   # but that defaults to local time, which is not necessarily the same time zone
-   # which can give things like created > last_update.
-   $sql .= "'$port', $categoryid, " .
-           "'$timestamp', $needs_refresh, 'A', 'N', " . $dbh->quote($commitdescription) . ")";
-
-   print "$sql\n";
-
-   my $sth = $dbh->prepare($sql);
-
-   $sth->execute ||
-      die "Could not execute PortCreate SQL statement ... maybe invalid?";
-
-   my $PortID = $sth->{'mysql_insertid'};
-
-   print "newly created port has ID = $PortID\n";
-
-#   $sql = "insert into newports (name, primary_category_id) values ('$port', $categoryid)";
-#
-#   $sth = $dbh->prepare($sql);
-#
-#   $sth->execute ||
-#      die "Could not execute SQL port insert statement ... $sql maybe invalid?";
-
-   return $PortID;
-}
 
 print "%%%%% - starting main loop " . `date "+%Y-%m-%d %H:%M:%S"` . "\n";
 while ((my $CategoryPort, my @PortIDChangePortID) = each %Ports) {
