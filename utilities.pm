@@ -1,4 +1,4 @@
-# $Id: utilities.pm,v 1.1 2001-11-09 20:53:12 dan Exp $
+# $Id: utilities.pm,v 1.2 2001-11-20 17:03:44 dan Exp $
 #
 
 package FreshPorts::Utilities;
@@ -8,19 +8,23 @@ package FreshPorts::Utilities;
 
 sub ReadFile($) {
 
-   my $file = shift;
-   my $content;
+	my $file = shift;
+	my $content;
 
-   open F,$file;
+	open F,$file;
+	if (stat F) {
+		$content = "";
+		while(<F>){
+			$content .= $_;
+		}
+	} else {
+		Sys::Syslog::syslog('warning', "cannot open file $file");
+		die "cannot open file $file";
+	}
 
-   $content = "";
-   while(<F>){
-      $content .= $_;
-   }
+	close F;
 
-   close F;
-
-   return $content;
+	return $content;
 }
 
 
