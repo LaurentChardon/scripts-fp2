@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# $Id: port.pm,v 1.15 2001-12-05 23:49:44 dan Exp $
+# $Id: port.pm,v 1.16 2001-12-09 06:52:01 dan Exp $
 #
 
 package FreshPorts::Port;
@@ -121,9 +121,14 @@ sub save {
 				depends_build		= " . $dbh->quote($this->{depends_build})		. ", \
 				depends_run			= " . $dbh->quote($this->{depends_run})			. ", \
 				forbidden			= " . $dbh->quote($this->{forbidden})			. ", \
-				broken				= " . $dbh->quote($this->{broken})				. ", \
-				last_commit_id		= $this->{last_commit_id} \
-				where id = $this->{id}";
+				broken				= " . $dbh->quote($this->{broken});
+
+				# we don't always have this value, so we don't change it....
+				if (defined($this->{last_commit_id})) {
+					$sql .= ", last_commit_id		= $this->{last_commit_id}";
+				}
+
+				$sql .= "where id = $this->{id}";
 
 print "sql = $sql\n";
 
