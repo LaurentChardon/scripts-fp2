@@ -1,11 +1,12 @@
 #!/usr/bin/perl
 #
-# $Id: category.pm,v 1.5 2001-11-09 04:08:59 dan Exp $
+# $Id: category.pm,v 1.6 2001-11-09 20:53:12 dan Exp $
 #
 
 package FreshPorts::Category;
 require Exporter;
 require	config;
+require utilities;
 
 use strict;
 use config;
@@ -194,29 +195,10 @@ sub _description_fetch {
 		die "Could not fetch file for '$DESTDIR' '$SRCDIR' '$FILE'.  Error code = " . ($? >> 8) . "\n";
 	}
 
-	my $description = _ReadFile("$DESTDIR/$FILE");
+	my $description = FreshPorts::Utilities::ReadFile("$DESTDIR/$FILE");
 
 	# get rid of the trailing CR/LF.
 	chomp $description;
 
 	return $description;
-}
-
-# =================================
-
-sub _ReadFile($) {
-
-   my $file = shift;
-   my $content;
-
-   open F,$file;
-
-   $content = "";
-   while(<F>){
-      $content .= $_;
-   }
-
-   close F;
-
-   return $content;
 }
