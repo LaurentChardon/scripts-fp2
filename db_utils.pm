@@ -1,5 +1,5 @@
 #
-# $Id: db_utils.pm,v 1.1.1.1 2001-11-05 05:16:32 dan Exp $
+# $Id: db_utils.pm,v 1.2 2001-11-09 17:52:59 dan Exp $
 #
 
 package FreshPorts::Database;
@@ -27,4 +27,5 @@ sub GetNextValue($;$) {
 
 	return $row[0];
 }
+
 1;

@@ -1,4 +1,4 @@
- #!/usr/bin/perl
+#!/usr/bin/perl
 
 use strict;
 use DBI;
@@ -6,6 +6,7 @@ use element;
 use category;
 use port;
 use database;
+use db_utils;
 
 use File::Basename;
 use Sys::Syslog;
@@ -16,7 +17,7 @@ my ($dbh, $port, $name);
 
 $dbh = FreshPorts::Database::GetDBHandle();
 
-$name = "security/acid1";
+$name = "security/acid";
 
 print "CREATING port = '$name'\n";
 
@@ -36,13 +37,16 @@ my $category = FreshPorts::Category->new($dbh);
 $category->{name} = File::Basename::dirname($name);
 my $category_id = $category->FetchByName();
 if (!$category_id) {
-	$category_id->save;
+	$category->{is_primary} = 1;
+	$category_id = $category->save();
 }
 
 
 $port = FreshPorts::Port->new($dbh);
 $port->{element_id}  = $element_id;
 $port->{category_id} = $category_id;
+$port->{category}    = $category->{name};
+$port->{name}        = File::Basename::basename($name);
 
 print "about to save\n";
 
@@ -69,6 +73,9 @@ $port->FetchByID();
 print "id                   = $port->{id}\n";
 print "element_id           = $port->{element_id}\n";
 print "category_id          = $port->{category_id}\n";
+print "needs_refresh        = $port->{needs_refresh}\n";
+print "category             = $port->{category}\n";
+print "name                 = $port->{name}\n";
 
 
 print "\n\n\n\ FETCHING by $name\n";
@@ -80,6 +87,9 @@ $port->FetchByPartialPathName();
 print "id                   = $port->{id}\n";
 print "element_id           = $port->{element_id}\n";
 print "category_id          = $port->{category_id}\n";
+print "needs_refresh        = $port->{needs_refresh}\n";
+print "category             = $port->{category}\n";
+print "name                 = $port->{name}\n";
 
 $dbh->commit();
 $dbh->disconnect();

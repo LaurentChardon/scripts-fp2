@@ -169,7 +169,7 @@ sub EnsureCategoryAndPortExist($;$;$) {
 			# This will be an insert, rather than just an update
 			# we we would do later below
 			Sys::Syslog::syslog('warning', "creating new port $port_name");
-			$port = CreatePort("$category_name/$port_name", $category_id, $dbh);
+			$port = CreatePort($category_name, $port_name, $category_id, $dbh);
 
 			if (!defined($port->{id})) {
 				Sys::Syslog::syslog('warning', "failed to create new port $category_name/$port_name");
@@ -224,13 +224,14 @@ sub GetCategory($;$) {
 	return $row[0];
 }
 
-sub CreatePort($;$;$) {
+sub CreatePort($;$;$;$) {
 #
 # create a new entry in the Ports table and return the id
 # The other fields will be populated later using the same
 # mechanism as is used for updating a port.
 #
-	my $categoryport	= shift;
+	my $category_name	= shift;
+	my $port_name		= shift;
 	my $category_id		= shift;
 	my $dbh				= shift;
 
@@ -243,7 +244,7 @@ sub CreatePort($;$;$) {
 	#
 
 	$element = FreshPorts::Element->new($dbh);
-	$element->{pathname} = "/$FreshPorts::Config::ports_prefix/$categoryport";
+	$element->{pathname} = "/$FreshPorts::Config::ports_prefix/$category_name/$port_name";
 
 	$element_id = $element->FetchByName();
 
@@ -255,6 +256,8 @@ sub CreatePort($;$;$) {
 	$port = FreshPorts::Port->new($dbh);
 	$port->{element_id}  = $element_id;
 	$port->{category_id} = $category_id;
+	$port->{category}    = $category_name;
+	$port->{name}        = $port_name;
 
 	$port->save();
 

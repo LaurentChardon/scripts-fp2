@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-# $Id: port.pm,v 1.1 2001-11-09 16:30:15 dan Exp $
+# $Id: port.pm,v 1.2 2001-11-09 17:52:59 dan Exp $
 #
 
 package FreshPorts::Port;
@@ -8,8 +8,10 @@ require Exporter;
 require	config;
 require	element;
 
+use File::PathConvert;
 use strict;
 use config;
+use constants;
 
 # =================================
 
@@ -25,6 +27,18 @@ sub _initialize {
 	# refresh this port.
 	#
 	$this->{needs_refresh} = -1;
+}
+
+sub _GetValuesFromRow {
+	my $this = shift;
+	my $row  = shift;
+
+	$this->{id} 			= $row->{id};
+	$this->{element_id}		= $row->{element_id};
+	$this->{category_id}	= $row->{category_id};
+	$this->{needs_refresh}	= $row->{needs_refresh};
+	$this->{category}		= $row->{category};
+	$this->{name}			= $row->{name};
 }
 
 # =================================
@@ -47,7 +61,7 @@ sub save {
 
 	#
 	# to save, element_id and category_id must be valid
-	# 
+	#
 
 	my $dbh = $this->{dbh}; # just a short cut...
 	my $sth;
@@ -57,7 +71,8 @@ sub save {
 	if ($this->{id}) {
 		# we are updating
 
-# correct this sql
+# correct this sql to update all fields...
+
 		$sql = "update ports  \
 				set \
 				is_primary		= " . $dbh->quote($this->{is_primary}) . ", \
@@ -68,11 +83,24 @@ sub save {
 				 where id = $this->{id}";
 		$sth = $this->{dbh}->prepare($sql);
 		$sth->execute ||
-			die "Could not execute SQL $sql ... maybe invalid?";
+			die "Could not execute SQL $sql ... maybe invalid? " . $dbh->errstr;
 	} else {
 		# we are inserting
 		# do we really need to quote these things?
+
+		if (!$this->{element_id} || !$this->{category_id} || !$this->{category} || !$this->{name}) {
+			Sys::Syslog::syslog('warning', "Cannot create new port.  Insufficient data");
+			die "Cannot create new port.  Insufficient data";
+		}
+
+		
+
+# update this sql to insert all fields?
+
 		$this->{id} = FreshPorts::Database::GetNextValue($FreshPorts::Constants::ports_id_seq, $dbh);
+
+		$this->{needs_refresh} = $this->GetNeedsRefreshForNewPort();
+
 		$sql = "insert into ports (id, element_id, category_id, needs_refresh) values ( \
 				$this->{id}, \
 				$this->{element_id}, \ 
@@ -82,8 +110,10 @@ sub save {
 		print "sql is $sql\n";
 
 		$sth = $this->{dbh}->prepare($sql);
-		$sth->execute ||
-			die "Could not execute SQL $sql ... maybe invalid?";
+		if (!$sth->execute) {
+			Sys::Syslog::syslog('warning', "Could not execute SQL $sql ... maybe invalid? " . $dbh->errstr);
+			die "Could not execute SQL $sql ... maybe invalid? " . $dbh->errstr;
+		}
 
 	}
 
@@ -101,22 +131,24 @@ sub FetchByID {
 
 	$dbh		= $this->{dbh};
 
-	$sql = "select * from ports where id = $this->{id}";
+	$sql = "select ports.*, categories.name as category, element.name as name \
+              from ports, categories, element \
+             where ports.id          = $this->{id} \
+               and ports.category_id = categories.id \
+               and ports.element_id  = element.id";
 	print "sql = '$sql'\n";
 
 	$sth = $dbh->prepare($sql);
 	if (!$sth->execute) {
 		Sys::Syslog::syslog('warning', "Could not execute SQL $sql");
-		die "Could not execute SQL $sql ... maybe invalid?";
+		die "Could not execute SQL $sql ... maybe invalid? " . $dbh->errstr;
 	}
 
 	$row = $sth->fetchrow_hashref();
 
 	$sth->finish();
 
-	$this->{id} 			= $row->{id};
-	$this->{element_id}		= $row->{element_id};
-	$this->{category_id}	= $row->{category_id};
+	$this->_GetValuesFromRow($row);
 
 	return $this->{id};
 }
@@ -147,30 +179,29 @@ sub FetchByPartialPathName {
 	}
 
 	$tmp = $dbh->quote($this->{name});
-	$sql = "select * \
-              from ports, categories \
+	$sql = "select ports.*, categories.name as category, element.name as name \
+              from ports, categories, element \
              where ports.element_id  = $this->{element_id} \
-               and ports.category_id = categories.id";
+               and ports.category_id = categories.id \
+               and ports.element_id  = element.id";
 	print "sql = '$sql'\n";
 
 	$sth = $dbh->prepare($sql);
 	if (!$sth->execute) {
 		Sys::Syslog::syslog('warning', "Could not execute SQL $sql");
-		die "Could not execute SQL $sql ... maybe invalid?";
+		die "Could not execute SQL $sql ... maybe invalid? " . $dbh->errstr;
 	}
 
 	$row = $sth->fetchrow_hashref();
 
 	$sth->finish();
 
-	$this->{id} 			= $row->{id};
-	$this->{element_id}		= $row->{element_id};
-	$this->{category_id}	= $row->{category_id};
+	$this->_GetValuesFromRow($row);
 
 	return $this->{id};
 }
 
-sub GetNeedsRefreshForNewPort() {
+sub GetNeedsRefreshForNewPort {
 	my $this = shift;
 	#
 	# When a new port is imported, we need to get the
@@ -189,6 +220,13 @@ sub GetNeedsRefreshForNewPort() {
 	my $needs_refresh	= 0;
 	my $category		= $this->{category};
 	my $port			= $this->{name};
+
+#	if (!$port) {
+#		
+#	}
+#
+#	if (!$category) {
+#	}
 
 	print "category = $category\n";
 	print "port     = $port\n";
@@ -274,12 +312,13 @@ sub GetNeedsRefreshForNewPort() {
 
 			print "after all that, needs_refresh = $needs_refresh\n";
 		} else {
-			print "error executing make command: " . $?;
+			print "error executing make command: " . ($? >> 8) . "\n";
+			Sys::Syslog::syslog('warning', "error executing make command: Error Code = " . ($? >> 8));
+			die "error executing make command: Error Code = " . ($? >> 8) . "\n";
 		}
 	}
 
 	return $needs_refresh;
 }
-
 
 1;
