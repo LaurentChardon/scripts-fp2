@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# $Id: port.pm,v 1.14 2001-11-25 03:36:52 dan Exp $
+# $Id: port.pm,v 1.15 2001-12-05 23:49:44 dan Exp $
 #
 
 package FreshPorts::Port;
@@ -312,6 +312,9 @@ sub _GetNeedsRefreshForNewPort {
 	# and using that to determine the other information.
 
 
+	return 7;  # Let's just use this for now.  See how it goes.
+
+
 	my $category	= $this->{category};
 	my $port		= $this->{name};
 
@@ -395,12 +398,12 @@ sub _GetNeedsRefreshForNewPort {
 			print "converted data COMMENT = $COMMENT\n";
 
 			my $entry = $FreshPorts::Constants::FILE_DESCRIPTION;
-			if ($DESCR ne "$FreshPorts::Config::path_to_ports/$category/$port/$entry") {
+			if ($DESCR eq "$FreshPorts::Config::path_to_ports/$category/$port/$entry") {
 				print "this port has it's own $entry\n";
 				my $index = $FreshPorts::Constants::FilesWhichPromptRefresh{$entry};
 				if ($index) {
-				print "index = $index\n";
-				$this->{needs_refresh} |= $index;
+					print "index = $index\n";
+					$this->{needs_refresh} |= $index;
 				}
 			} else {
 				print "this port uses $DESCR\n";
@@ -409,7 +412,7 @@ sub _GetNeedsRefreshForNewPort {
 			$entry = $FreshPorts::Constants::FILE_COMMENT;
 
 			$COMMENT = File::PathConvert::realpath($COMMENT);
-			if ($COMMENT ne "$FreshPorts::Config::path_to_ports/$category/$port/$entry") {
+			if ($COMMENT eq "$FreshPorts::Config::path_to_ports/$category/$port/$entry") {
 				print "this port has it's own $entry\n";
 				my $index = $FreshPorts::Constants::FilesWhichPromptRefresh{$entry};
 				if ($index) {
@@ -435,7 +438,7 @@ sub _GetNeedsRefreshForNewPort {
 }
 
 
-sub ExtractValuesFromMakefile {
+sub _ExtractValuesFromMakefile {
 	my $this = shift;
 
 	my $result;
@@ -495,8 +498,12 @@ sub ExtractValuesFromMakefile {
 		print " builddepends ='$builddepends'\n";
 		print " rundepends   ='$rundepends'\n";
 
-		(my $longdescription, my $homepage) = _GetDescrAndHomePage($descrpath);
-		my $shortdescription = FreshPorts::Utilities::ReadFile($commentfile);
+
+		my $RealDescrPath	= File::PathConvert::realpath($descrpath);
+		my $RealCommentFile	= File::PathConvert::realpath($commentfile); 
+
+		(my $longdescription, my $homepage) = _GetDescrAndHomePage($RealDescrPath);
+		my $shortdescription = FreshPorts::Utilities::ReadFile($RealCommentFile);
 
 		my $packageexists = _PackageExists($packagename . ".tgz");
 
@@ -547,41 +554,11 @@ sub ExtractValuesFromMakefile {
 	return $result;
 }
 
-sub FetchFilesNeedingRefresh {
-	# a return of zero indicates success.
+sub _FetchFilesNeedingRefresh {
+	# a return of 1 indicates success.
 
 	my $this	= shift;
 	my $result	= 0;
-
-#	print " now in RefreshOnePort.  press enter to continue\n";
-# <STDIN>;
-
-	# now find out what needs to be refreshed....
-
-	print "needs_refresh = $this->{needs_refresh}\n";
-
-	my $FetchWorked = 1;
-
-	# 2000.06.09 - Dan Langille
-	#
-	# Here is the question I asked in #perl.  Can you tell nobody else
-	# was active?
-	#
-	# I'm having trouble with a hash.  the definition is hardcoded as a
-	# constant at the top of the file.  I use the hash in a function
-	# which called repeatedly.  In the function I do this: while ((my
-	# $key, my $value) = each %FilesWhichPromptRefresh) {...etc  but:
-	# 
-	# if I exit the while using "last", the next time I call the
-	# function, it never enters the while.  I suspect the hash is either
-	# being cleared out or needs to be "reset".  sound familiar?
-	# 
-	# looking at the documentation for values, it mentions that function
-	# "resets HASH's iterator".  sounds like something I need.
-	# OK.  doing this before the while fixes the problem: keys
-	# %FilesWhichPromptRefresh;  <== but there must be a better. way.
-	#
-	keys %FreshPorts::Constants::FilesWhichPromptRefresh;
 
 	# this is where we fetch the files to disk
 	my $DESTDIR	= "$FreshPorts::Config::path_to_ports/$this->{category}/$this->{name}";
@@ -589,38 +566,87 @@ sub FetchFilesNeedingRefresh {
 	# this is the location in the repository.
 	my $SRCDIR	= "$FreshPorts::Config::ports_prefix/$this->{category}/$this->{name}";
 
-	while ((my $FILE, my $value) = each %FreshPorts::Constants::FilesWhichPromptRefresh) {
-		if ($this->{needs_refresh} & $value) {
-			print "now fetching $FILE\n";
-			#
-			# should this be path hardcoded?
-			# if it isn't, the chdir which occurs in RefreshPort below
-			# makes this call fail (because it can't find the script).
-			#
-         
-			`sh $FreshPorts::Config::scriptpath/fetch-cvs-file.sh $DESTDIR $SRCDIR $FILE`;
+	my $FILE	= $FreshPorts::Constants::FILE_MAKEFILE;
 
-			if (($? >> 8)) {
-				#
-				# This might be a good place to refetch, loop. or send an email.
-				#
-				print "that fetch failed.  What do to?\n";
-				$FetchWorked = 0;
 
-				# and we're outta here
-				last;
+	if (FreshPorts::Utilities::FetchFile($DESTDIR, $SRCDIR, $FILE)) {
+		#
+		# now that we have the Makefile for this port, let's figure out the full name
+		# of the pkg-descr and pkg-comment files.  They may belong to another port.
+		#
+
+		print "now doing a chdir to $DESTDIR\n";
+		chdir "$DESTDIR";
+
+		#
+		# create this directory to catch errors
+		# such as the pre-everything having only one ':'
+		#
+		mkdir "pkg",0;
+
+		my $makecommand = "make -V DESCR -V COMMENT -f $DESTDIR/$FILE";
+
+		# remove previously created directory
+		rmdir "pkg";
+
+		print "makecommand = $makecommand\n";
+		(my $DESCR, my $COMMENT) = split(/\n/s, `$makecommand`);
+
+		#
+		# we need to check this return value.  if it fails, we need to know
+		#
+
+		if ($? == 0) {
+			print "raw       data DESCR   = $DESCR\n";
+			print "raw       data COMMENT = $COMMENT\n";
+
+			#
+			# some ports (e.g. korean/netscape47-communicator) use
+			# ../ in their path names.  We must remove that in order
+			# to find out if have to retrieve a file in our path
+			#
+
+			$DESCR   = File::PathConvert::realpath($DESCR);
+			$COMMENT = File::PathConvert::realpath($COMMENT);
+
+			print "converted data DESCR   = $DESCR\n";
+			print "converted data COMMENT = $COMMENT\n";
+
+			#
+			# now fetch these two files.  Since we obtained
+			# these values from the Makefile, we don't have to
+			# specify any directory prefix.  The Makefile did that.
+			#
+
+			my $directory	= File::Basename::dirname ($DESCR);
+			my $FILE		= File::Basename::basename($DESCR);
+			my $DESTDIR		= $directory;
+
+			print "fetching \$DESTDIR = [$DESTDIR], \$SRCDIR = [$SRCDIR], \$FILE = [$FILE]\n";
+
+			if (FreshPorts::Utilities::FetchFile($DESTDIR, $SRCDIR, $FILE)) {
+
+				my $directory	= File::Basename::dirname ($COMMENT);
+				my $FILE		= File::Basename::basename($COMMENT);
+				my $DESTDIR		= $directory;
+
+				print "fetching \$DESTDIR = [$DESTDIR], \$SRCDIR = [$SRCDIR], \$FILE = [$FILE]\n";
+
+				if (FreshPorts::Utilities::FetchFile($DESTDIR, $SRCDIR, $FILE)) {
+					$result = 1;
+				}
 			}
+			
+
+		} else {
+			print "error executing make command: " . ($? >> 8) . "\n";
+			Sys::Syslog::syslog('warning', "error executing make command: Error Code = " . ($? >> 8));
+			die "error executing make command: Error Code = " . ($? >> 8) . "\n";
 		}
-	}
-
-#	print "press enter to continue "; <STDIN>;
-
-	if ($FetchWorked) {
-		print "refreshing port...\n";
-#		$result = RefreshPort($dirname, $port, $dbh);
 	} else {
-		print "can't do anything about that port...\n";
-		$result = 1;
+			print "error fetching Makefile\n";
+			Sys::Syslog::syslog('warning', "error fetching Makefile");
+			die "error executing merror fetching Makefile\n";
 	}
 
 	return $result;
@@ -686,8 +712,8 @@ sub RefreshFromFiles() {
 
 	if ($this->{needs_refresh} > 0) {
 		while ($FetchAttempts) {
-			if (!$this->FetchFilesNeedingRefresh()) {
-				$this->ExtractValuesFromMakefile();
+			if ($this->_FetchFilesNeedingRefresh()) {
+				$this->_ExtractValuesFromMakefile();
 				$this->{needs_refresh} = 0;
 				$this->save();
 				last;

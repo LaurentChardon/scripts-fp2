@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# $Id: load_xml_into_db.pl,v 1.25 2001-12-05 08:33:38 dan Exp $
+# $Id: load_xml_into_db.pl,v 1.26 2001-12-05 23:49:44 dan Exp $
 #
 #
 # Parse cvs messages in XML format so they can be put into a database
@@ -227,7 +227,7 @@ sub handle_update_end
 	# once that is done, we commit.
 	# This needs to be done before re undef everything.
 
-    my $commit_date     = sprintf "%04u%02u%02u", $Updates{dateyear}, $Updates{datemonth}, $Updates{dateday};
+    my $commit_date     = sprintf "%04u-%02u-%02u", $Updates{dateyear}, $Updates{datemonth}, $Updates{dateday};
 
 	# we don't clear these values until the end of the update
 	undef $Updates{os};

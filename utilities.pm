@@ -1,4 +1,4 @@
-# $Id: utilities.pm,v 1.5 2001-11-25 03:36:52 dan Exp $
+# $Id: utilities.pm,v 1.6 2001-12-05 23:49:44 dan Exp $
 #
 
 package FreshPorts::Utilities;
@@ -26,6 +26,54 @@ sub ReadFile($) {
 	close F;
 
 	return $content;
+}
+
+sub FetchFile($;$;$) {
+	#
+	# fetch a file
+	# into the given path
+	# returns 1 if fetched.
+	# zero otherwise.
+	#
+	my $DESTDIR	= shift;
+	my $SRCDIR	= shift;
+	my $FILE	= shift;
+
+	my $result  = 0;
+
+	`sh $FreshPorts::Config::scriptpath/fetch-cvs-file.sh $DESTDIR $SRCDIR $FILE`;
+
+	my $FetchAttempts = 5;
+
+	while ($FetchAttempts) {
+		`sh $FreshPorts::Config::scriptpath/fetch-cvs-file.sh $DESTDIR $SRCDIR $FILE`;
+
+		if (($? >> 8)) {
+			#
+			# This might be a nice place to retry a fetch, or send an email
+			#
+			print "that fetch failed.  What do to?\n";
+
+			# and we're outta here
+			# fetch failed
+			# sleep, then try again
+
+			Sys::Syslog::syslog('warning', "sleeping after fetch failed for ($DESTDIR $SRCDIR $FILE)");
+			print "fetch failed, sleeping...\n";
+			sleep 10;
+			$FetchAttempts--;
+
+		} else {
+			# fetch worked
+			last;
+		}
+    }
+
+	#
+	# if we succeeded in our fetch..
+	if ($FetchAttempts) {
+		$result = 1;
+	}
 }
 
 #
