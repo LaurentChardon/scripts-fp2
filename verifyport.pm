@@ -83,6 +83,9 @@ sub RefreshPortsAssociatedWithMessage($;$) {
 
 		$this->{last_commit_id} = $commit_log_id;
 
+		$port->FetchFilesNeedingRefresh();
+		$port->ExtractValuesFromMakefile();
+		$port->{needs_refresh} = 0;
 		$port->save();
 #		MarkPortAsRefreshNeeded($port_id, $commit_id, $action, $entry, $dbh);
 	}

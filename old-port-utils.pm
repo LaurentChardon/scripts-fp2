@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-# $Id: old-port-utils.pm,v 1.1 2001-11-09 16:30:15 dan Exp $
+# $Id: old-port-utils.pm,v 1.2 2001-11-09 23:26:46 dan Exp $
 #
 
 package ports;
@@ -85,58 +85,6 @@ EOF
    close(SENDMAIL)     or warn "sendmail didn't close nicely";
 
 }
-
-# =================================
-sub PackageExists($) {
-
-   my $package = shift;
-   my $exists  = "N";
-
-   open F,"/usr/local/etc/freshports/packages.exists";
-
-LINE:
-   while(<F>){
-#      if(/$package/) {
-       if(index($_, $package) != -1 ) {
-         $exists = "Y";
-         last LINE;
-      }
-   }
-   close F;
-                                                                
-   return $exists;                                              
-}  
-
-
-
-# =================================
-sub GetDescrAndHomePage($) {
-
-   my $file = shift;
-   my $url;
-   my $DESCR;
-
-   open F,$file;
-
-   $DESCR = "";
-   while(<F>){
-      $DESCR .= $_;
-      if(/WWW:(.*)/) {
-
-#print "found a home page of $url\n";
-
-         $url = $1;
-         $url =~  s/^\s+//g;
-      }
-   }
-
-   close F;                              
-                                                                
-   my @result = ($DESCR, $url);                                    
-                                                                
-   return @result;                                              
-}
-
 
 sub PortUpdate($;$;$;$;$;$;$;$;$;$;$;$;$;$;$;$;$;$;$) {
    my $name             = shift;
@@ -323,79 +271,6 @@ sub RefreshPortNoChecking($;$;$;$;$) {
    # create this directory to catch errors
    # such as the pre-everything having only one ':'
    #
-   mkdir "pkg",0;
-
-   my $makecommand = "make -V PORTNAME -V PKGNAME -V DESCR -V CATEGORIES -V PORTVERSION " .
-         "-V COMMENT -V MAINTAINER -V EXTRACT_SUFX -V MASTER_SITES " .
-         "-V BUILD_DEPENDS -V RUN_DEPENDS -V FORBIDDEN -V BROKEN -f $DirectoryOfMakeFile/$NameOfMakefile";
-
-   print "makecommand = $makecommand\n";
-   chdir "$DirectoryOfMakeFile";
-
-   (my $portname, my $packagename, my $descrpath, my $categories, my $portversion, my $commentfile,
-    my $maintainer, my $extractsuffix, my $mastersites, my $builddepends,
-    my $rundepends, my $forbidden, my $broken) = split(/\n/s, `$makecommand`);
-
-   # remove previously created directory
-   rmdir "pkg";
-
-   #
-   # we need to check this return value.  if it fails, we need to know
-   #
-
-   if ($? == 0) {
-
-   print " 0 $Port\n";
-   print " 1 $portname\n";
-   print " a $Category\n";
-   print " 2 $packagename\n";
-   print " 3 $descrpath\n";
-   print " 4 $categories\n";
-   print " 5 $portversion\n";
-   print " 6 $commentfile\n";
-   print " 7 $maintainer\n";
-   print " 8 $extractsuffix\n";
-   print " 9 $mastersites\n";
-   print "10 $builddepends\n";
-   print "11 $rundepends\n";
-
-   (my $longdescription, my $homepage) = GetDescrAndHomePage($descrpath);
-   my $shortdescription = ReadFile($commentfile);
-
-   my $packageexists = PackageExists($packagename . ".tgz");
-
-   # because we are adding in \ before the quotes,
-   # we need to quote the \'s first.
-
-   #  these bits might have \'s.
-#   $longdescription  =~ s/\\/\\\\/g;
-#   $shortdescription =~ s/\\/\\\\/g;
-
-#   #  these bits might have quotes.
-#   $longdescription  =~ s/\'/\\'/g;
-#   $shortdescription =~ s/\'/\\'/g;
-
-   print "12 $shortdescription\n";
-   print "13 $longdescription\n";
-   print "14 ";
-   if (defined($homepage)) {
-      print "$homepage";
-   }
-   print "\n";
-   print "15 $packageexists\n";
-   print "16 $forbidden\n";
-   print "17 $broken\n";
-
-   print "\n ---------------------------------------- \n";
-
-   $result = PortUpdate ($Port, $portname, $Category, $descrpath, $categories, $portversion,
-      $commentfile, $maintainer, $extractsuffix, $mastersites, $builddepends,
-      $rundepends, $shortdescription, $longdescription, $homepage, $packageexists, $forbidden, $broken, $dbh);
-   } else {
-      $result = -1;
-   }
-
-   return $result;
 }
 
 sub RefreshPort($;$;$) {
@@ -439,84 +314,6 @@ sub RefreshPort($;$;$) {
    return $result;
 }
 
-sub RefreshOnePort($;$;$;$) {
-   my $category      = shift;
-   my $port          = shift;
-   my $needs_refresh = shift;
-   my $dbh           = shift;
-
-   # a return of zero indicates success.
-   my $result        = 0;
-
-   my $dirname = "$PORTSBASEDIR/$category";
-
-   print " now in RefreshOnePort.  press enter to continue";
-# <STDIN>;
-
-   print " which becomes $dirname : $port\n";
-
-   # now find out what needs to be refreshed....
-
-   print "needs_refresh = $needs_refresh\n";
-
-   my $FetchWorked = 1;
-
-# 2000.06.09 - Dan Langille
-#
-# Here is the question I asked in #perl.  Can you tell nobody else
-# was active?
-#
-# I'm having trouble with a hash.  the definition is hardcoded as a
-# constant at the top of the file.  I use the has in a function
-# which called repeatedly.  In the function I do this: while ((my
-# $key, my $value) = each %FilesWhichPromptRefresh) {...etc  but:
-# 
-# if I exit the while using "last", the next time I call the
-# function, it never enters the while.  I suspect the hash is either
-# being cleared out or needs to be "reset".  sound familiar?
-# 
-# looking at the documentation for values, it mentions that function
-# "resets HASH's iterator".  sounds like something I need.
-# OK.  doing this before the while fixes the problem: keys
-# %FilesWhichPromptRefresh;  <== but there must be a better. way.
-#
-   keys %FilesWhichPromptRefresh;
-
-   while ((my $key, my $value) = each %FilesWhichPromptRefresh) {
-      if ($needs_refresh & $value) {
-         print "now fetching $key\n";
-         #
-         # should this be path hardcoded?
-         # if it isn't, the chdir which occurs in RefreshPort below
-         # makes this call fail (because it can't find the script).
-         #
-         
-         `sh $SCRIPTDIR/fetch-cvs-file.sh $category $port $key`;
-
-         if (($? >> 8)) {
-            #
-            # This might be a good place to refetch, loop. or send an email.
-            #
-            print "that fetch failed.  What do to?\n";
-            $FetchWorked = 0;
-
-            # and we're outta here
-            last;
-         }
-      }
-   }
-
-#   print "press enter to continue "; <STDIN>;
-
-   if ($FetchWorked) {
-      print "refreshing port...\n";
-      $result = RefreshPort($dirname, $port, $dbh);
-   } else {
-      print "can't do anything about that port...\n";
-      $result = 1;
-   }
-
-   return $result;
 }
 
 
