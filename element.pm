@@ -1,16 +1,15 @@
 #!/usr/bin/perl
 #
-# $Id: element.pm,v 1.1.1.1 2001-11-05 05:16:33 dan Exp $
+# $Id: element.pm,v 1.2 2001-11-05 06:48:49 dan Exp $
 #
 
 package FreshPorts::Element;
-#require Exporter;
 
 use strict;
 use File::Basename;
 
-$FreshPorts::Element::Active	= 'A';
-$FreshPorts::Element::Deleted	= 'D';
+my $Active	= 'A';
+my $Deleted	= 'D';
 
 sub new {
 	my $this		= {};
@@ -24,44 +23,93 @@ sub new {
 sub _initialize {
 }
 
-sub CreateNewByName {
-	my $this						= shift;
+sub save {
+	my $this = shift;
 
-	$this->{pathname}				= shift;
-	$this->{directory_file_flag}	= shift;
-	$this->{status}					= shift;
+	#
+	# if id is supplied, we are updating. otherwise we are inserting.
+	# if parent_id is supplied, it will be used.  Otherwise, it will
+	# be derived from pathname.  if parent_id is set, it is assumed
+	# that pathname is correct.
+	# if name is not supplied, it will be derived from pathname.
+	# 
 
-	$this->{name} = File::Basename::basename($this->{pathname});
-
+	my $dbh = $this->{dbh}; # just a short cut...
 	my $sth;
 	my $sql;
 	my @row;
 
-	$sql = "select Element_Add('$this->{pathname}', '$this->{directory_file_flag}')";
+	# get the name if not supplied
+	if (!$this->{name}) {
+		if (!$this->{pathname}) {
+			die "neither name nor pathname supplied";
+		}
+		$this->{name} = File::Basename::basename($this->{pathname});
+	}
 
-	print "sql is $sql\n";
+	if (!$this->{status}) {
+		$this->{status} = $Active;
+	}
 
-	$sth = $this->{dbh}->prepare($sql);
-	$sth->execute ||
-		die "Could not execute SQL $sql ... maybe invalid?";
+	# if we don't have the parent id, derive it from the pathanem
+	if (!$this->{parent_id}) {
+		#
+		# our parent's name is the basename of our pathname
+		# i.e. our path name - our name.
+		#
+		if (!$this->{pathname}) {
+			die "neither parent_id nor pathname supplied";
+		}
+		print "pathname = '$this->{pathname}'\n";
+		my $parent_name = File::Basename::dirname($this->{pathname});
+		print "parent name = '$parent_name'\n";
+		#
+		# fetch the element with that name
+		my $parent = FreshPorts::Element->new($dbh);
+		$parent->{pathname} = $parent_name;
+		$this->{parent_id} = $parent->FetchByName();
+	}
 
-	@row = $sth->fetchrow_array();
+	if ($this->{id}) {
+		# we are updating
+		$sql = "update element  \
+				set \
+				name      = " . $dbh->quote($this->{name}) . ", \
+				parent_id = $this->{parent_id}, \
+				directory_file_flag = " . $dbh->quote($this->{directory_file_flag}) . ", \
+				status    = " . $dbh->quote($this->{status}) . " \
+				 where id = $this->{id}";
+		$sth = $this->{dbh}->prepare($sql);
+		$sth->execute ||
+			die "Could not execute SQL $sql ... maybe invalid?";
+	} else {
+		# we are inserting
+		$sql = "select Element_Add(	'$this->{pathname}', \
+									'$this->{directory_file_flag}')";
 
-	$sth->finish();
+		print "sql is $sql\n";
 
-	$this->{id} = $row[0];
+		$sth = $this->{dbh}->prepare($sql);
+		$sth->execute ||
+			die "Could not execute SQL $sql ... maybe invalid?";
 
-	# after saving, make sure you read everything back in
+		@row = $sth->fetchrow_array();
+
+		$sth->finish();
+
+		$this->{id} = $row[0];
+	}
+
+	# after saving, return the ID
 	return $this->{id};
 }
 
 sub FetchByID {
 	my $this	= shift;
-	my $id		= shift;
 
 	my $dbh		= $this->{dbh};
 
-	my $sql = "select *, element_pathname(id) as pathname from element where id = $id";
+	my $sql = "select *, element_pathname(id) as pathname from element where id = $this->{id}";
 #	print "sql = '$sql'\n";
 
 	my $sth = $dbh->prepare($sql);
@@ -85,16 +133,19 @@ sub FetchByID {
 }
 
 sub FetchByName {
-	# obtain the element based on the id supplied
-	my $this		= shift;
-	my $filename	= shift;
+	# obtain the element based on the pathname supplied
+	my $this	= shift;
 
-	my $dbh			= $this->{dbh};
+	my $dbh		= $this->{dbh};
+	if (!$dbh) {
+		die " no database handle!";
+	}
 
 	my ($sql, $sth, @row);
 
-	my $quoted_filename = $dbh->quote($filename);
-	$sql = "select Pathname_ID($quoted_filename)";
+	print "pathname = '$this->{pathname}'\n";
+	my $tmp = $dbh->quote("things");
+	$sql = "select Pathname_ID(" . $dbh->quote($this->{pathname}) . ")";
 
 	$sth = $dbh->prepare($sql);
 	if (!$sth->execute) {
@@ -105,9 +156,9 @@ sub FetchByName {
 	@row = $sth->fetchrow_array();
 
 	$sth->finish();
-print "id = '$row[0]'\n";
-	return $this->FetchByID($row[0]);
+	print "id = '$row[0]'\n";
+	$this->{id} = $row[0];
+	return $this->FetchByID();
 }
 
 1;
-
