@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# $Id: load_xml_into_db.pl,v 1.1.1.1 2001-11-05 05:16:32 dan Exp $
+# $Id: load_xml_into_db.pl,v 1.2 2001-11-06 21:01:01 dan Exp $
 #
 #
 # Parse cvs messages in XML format so they can be put into a database
@@ -24,6 +24,7 @@ require Sys::Syslog;
 use verifyport;
 use config;
 use db_utils;
+use database;
 
 use XML::Node;
 use DBI;
@@ -82,7 +83,9 @@ sub main {
 
    print "Processing file [$inputfile]...\n";
 
-   $dbh = GetDBHandle();
+	print "dbname = $FreshPorts::Config::dbname\n";
+
+   $dbh = FreshPorts::Database::GetDBHandle();
    if ($dbh->{Active}) {
 
       $p->parsefile($inputfile);
@@ -361,7 +364,7 @@ sub CommitLogElementsInsert($;$;$;$;$) {
 
    if (!$debug) {
 
-      $sth = $dbh_pg->prepare($sql);
+      $sth = $dbh->prepare($sql);
       if (!$sth->execute) {
            Sys::Syslog::syslog('warning', "Could not execute SQL");
            die "Could not execute SQL $sql ... maybe invalid?";
@@ -411,7 +414,7 @@ sub ElementRevisionInsert($;$;$) {
    print "sql = '$sql'\n";
  
    if (!$debug) {
-      $sth = $dbh_pg->prepare($sql);
+      $sth = $dbh->prepare($sql);
       if (!$sth->execute) {
               Sys::Syslog::syslog('warning', "Could not execute sql");
               die "Could not execute SQL $sql ... maybe invalid?";
@@ -481,20 +484,6 @@ sub handle_messageto_end
 
 }
 
-sub GetDBHandle {
-   $dbh_pg = DBI->connect('DBI:Pg:dbname=' . $FreshPorts::Config::dbname, $FreshPorts::Config::user, $FreshPorts::Config::password);
-   if ($dbh_pg->{Active}) {
-      $dbh_pg->{AutoCommit} = 0;
-
-      if (!$dbh_pg) {
-         Sys::Syslog::syslog('warning', "could not connect to FreshPorts2");
-         die "could not connect to FreshPorts2\n";
-      }
-   }
-
-   return $dbh_pg;
-}
-
 sub SaveUpdateToDB {
    my $sth;
    my $sql;
@@ -538,7 +527,7 @@ sub SaveUpdateToDB {
    print "SaveUpdateToDB sql = $sql\n";
 
    if (!$debug) {
-      $sth = $dbh_pg->prepare($sql);
+      $sth = $dbh->prepare($sql);
       if (!$sth->execute) {
              Sys::Syslog::syslog('warning', "Could not execute SQL $sql");
              die "Could not execute SQL $sql ... maybe invalid?";
