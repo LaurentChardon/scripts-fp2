@@ -1,5 +1,8 @@
 #!/usr/bin/perl
-# $Id: port.pm,v 1.16 2001-12-09 06:52:01 dan Exp $
+# $Id: port.pm,v 1.17 2001-12-22 04:30:00 dan Exp $
+#
+#
+# Copyright (c) 2001 DVL Software
 #
 
 package FreshPorts::Port;
@@ -431,9 +434,9 @@ sub _GetNeedsRefreshForNewPort {
 			$result = 1; # if we get here, we did good..
 
 		} else {
-			print "error executing make command: " . ($? >> 8) . "\n";
-			Sys::Syslog::syslog('warning', "error executing make command: Error Code = " . ($? >> 8));
-			die "error executing make command: Error Code = " . ($? >> 8) . "\n";
+			print "error executing make command for $category/$port: Error Code = " . ($? >> 8) . "\n";
+			Sys::Syslog::syslog('warning', "error executing make command for $category/$port: Error Code = " . ($? >> 8));
+			die "error executing make command for $category/$port: Error Code = " . ($? >> 8) . "\n";
 		}
 	}
 
@@ -644,9 +647,9 @@ sub _FetchFilesNeedingRefresh {
 			
 
 		} else {
-			print "error executing make command: " . ($? >> 8) . "\n";
-			Sys::Syslog::syslog('warning', "error executing make command: Error Code = " . ($? >> 8));
-			die "error executing make command: Error Code = " . ($? >> 8) . "\n";
+			print "error executing make command for $this->{category}/$this->{name}: Error Code = " . ($? >> 8) . "\n";
+			Sys::Syslog::syslog('warning', "error executing make command for $this->{category}/$this->{name}: Error Code = " . ($? >> 8));
+			die "error executing make command for $this->{category}/$this->{name}: Error Code = " . ($? >> 8) . "\n";
 		}
 	} else {
 			print "error fetching Makefile\n";
