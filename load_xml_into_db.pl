@@ -1,7 +1,8 @@
 #!/usr/bin/perl -w
 #
-# $Id: load_xml_into_db.pl,v 1.26 2001-12-05 23:49:44 dan Exp $
+# $Id: load_xml_into_db.pl,v 1.27 2001-12-22 04:30:40 dan Exp $
 #
+# Copyright (c) 2001 DVL Software
 #
 # Parse cvs messages in XML format so they can be put into a database
 # Version 4 - uses DTD version 0.12
@@ -20,7 +21,7 @@
 #we make a great deal of use of a global variable Updates.  We should fix that up.
 # use strict;
 
-use lib '/home/lists/scripts';
+use lib '/home/lists-test/scripts';
 
 require Sys::Syslog;
 

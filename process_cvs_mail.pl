@@ -1,7 +1,8 @@
 #!/usr/bin/perl -w
 #
+# $Id: process_cvs_mail.pl,v 1.7 2001-12-22 04:30:40 dan Exp $
 #
-# $Id: process_cvs_mail.pl,v 1.6 2001-11-23 19:56:46 dan Exp $
+# Copyright (c) 2001 DVL Software
 #
 # Process incoming mail from cvs-all mailing list at freebsd.org
 # and convert it to XML output according to the FreshPorts DTD.

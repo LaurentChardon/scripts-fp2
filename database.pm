@@ -1,4 +1,9 @@
 #!/usr/bin/perl
+#
+# $Id: database.pm,v 1.2 2001-12-22 04:30:39 dan Exp $
+#
+# Copyright (c) 2001 DVL Software
+#
 
 package FreshPorts::Database;
 

@@ -1,7 +1,10 @@
 #!/usr/bin/perl
 #
-# $Id: commit_log_element.pm,v 1.1 2001-11-11 08:35:54 dan Exp $
+# $Id: commit_log_element.pm,v 1.2 2001-12-22 04:30:38 dan Exp $
 #
+# Copyright (c) 2001 DVL Software
+#
+
 
 package FreshPorts::CommitLogElement;
 

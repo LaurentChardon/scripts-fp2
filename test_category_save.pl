@@ -1,5 +1,9 @@
 #!/usr/bin/perl
-
+#
+# $Id: test_category_save.pl,v 1.4 2001-12-22 04:30:41 dan Exp $
+#
+# Copyright (c) 2001 DVL Software
+#
 use strict;
 use DBI;
 use element;

@@ -1,6 +1,8 @@
 #!/usr/bin/perl
 #
-# $Id: old-port-utils.pm,v 1.2 2001-11-09 23:26:46 dan Exp $
+# $Id: old-port-utils.pm,v 1.3 2001-12-22 04:30:40 dan Exp $
+#
+# Copyright (c) 200 DVL Software
 #
 
 package ports;

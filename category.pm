@@ -1,6 +1,8 @@
 #!/usr/bin/perl
 #
-# $Id: category.pm,v 1.6 2001-11-09 20:53:12 dan Exp $
+# $Id: category.pm,v 1.7 2001-12-22 04:30:38 dan Exp $
+#
+# Copyright (c) 2001 DVL Software
 #
 
 package FreshPorts::Category;

@@ -1,4 +1,9 @@
 #!/usr/bin/perl
+#
+# $Id: test_port_save.pl,v 1.5 2001-12-22 04:30:43 dan Exp $
+#
+# Copyright (c) 2001 DVL Software
+#
 
 use strict;
 use DBI;
@@ -81,7 +86,7 @@ print "name                 = $port->{name}\n";
 print "\n\n\n\ FETCHING by $name\n";
 
 $port = FreshPorts::Port->new($dbh);
-$port->{partialpathname} = $name;
+		$port->{partialpathname} = $name;
 $port->FetchByPartialPathName();
 
 print "id                   = $port->{id}\n";

@@ -1,7 +1,9 @@
 #!/bin/sh
 #
-# $Id: freebsd-cvs.sh,v 1.1 2001-11-10 16:26:25 dan Exp $
+# $Id: freebsd-cvs.sh,v 1.2 2001-12-22 04:30:40 dan Exp $
 #
+#
+# Copyright (c) 1999-2000 DVL Software
 #
 # Process a raw mail message by converting it to XML, then importing it into
 # the database.

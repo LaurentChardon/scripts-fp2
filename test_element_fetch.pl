@@ -1,4 +1,9 @@
 #!/usr/bin/perl
+#
+# $Id: test_element_fetch.pl,v 1.4 2001-12-22 04:30:41 dan Exp $
+#
+# Copyright (c) 2001 DVL Software
+#
 
 use strict;
 use DBI;
@@ -12,7 +17,7 @@ my ($dbh, $element);
 $dbh = FreshPorts::Database::GetDBHandle();
 
 $element = FreshPorts::Element->new($dbh);
-$element->{id} = 4;
+$element->{id} = 4234908243;
 $element->FetchByID();
 
 print "id                   = $element->{id}\n";

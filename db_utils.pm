@@ -1,7 +1,8 @@
 #
-# $Id: db_utils.pm,v 1.2 2001-11-09 17:52:59 dan Exp $
+# $Id: db_utils.pm,v 1.3 2001-12-22 04:30:39 dan Exp $
 #
-
+# Copyright (c) 2001 DVL Software
+#
 package FreshPorts::Database;
 
 sub GetNextValue($;$) {

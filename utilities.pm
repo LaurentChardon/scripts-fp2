@@ -1,6 +1,8 @@
-# $Id: utilities.pm,v 1.6 2001-12-05 23:49:44 dan Exp $
+# $Id: utilities.pm,v 1.7 2001-12-22 04:30:44 dan Exp $
 #
-
+#
+# Copyright (c) 2001 DVL Software
+#
 package FreshPorts::Utilities;
 
 require Sys::Syslog;
