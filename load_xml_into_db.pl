@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# $Id: load_xml_into_db.pl,v 1.15 2001-11-20 18:50:29 dan Exp $
+# $Id: load_xml_into_db.pl,v 1.16 2001-11-21 05:28:02 dan Exp $
 #
 #
 # Parse cvs messages in XML format so they can be put into a database
@@ -377,19 +377,8 @@ print "element_id='$element_id'\nfilename='$filename'\n";
 	# messages being recieved out of order or because of items
 	# not on file because their creation pre-dates this database.
 	#
-	if ($NewRevision) {
-		#
-		# we are creating a new revision.  insert it.
-		#
+	if (!ElementRevisionExists($element_id, $revisionname, $dbh)) {
 		ElementRevisionInsert($element_id, $revisionname, $dbh);
-	} else {
-		#
-		# we aren't creating a new revision.  we must be deleting...
-		# but perhaps not... but make sure that revision exists.
-		#
-		if (!ElementRevisionExists($element_id, $revisionname, $dbh)) {
-			ElementRevisionInsert($element_id, $revisionname, $dbh);
-		}
 	}
 
 	print "saving commit_log_element\n";
@@ -481,29 +470,29 @@ sub ElementRevisionExists($;$;$) {
 
 
 sub ElementRevisionInsert($;$;$) {
-   my $ElementID    = shift;
-   my $RevisionName = shift;
-   my $dbh          = shift;
+	my $ElementID    = shift;
+	my $RevisionName = shift;
+	my $dbh          = shift;
 
-   my $sth;
-   my $sql;
+	my $sth;
+	my $sql;
 
-   # quote everything going into the database
-   my $QuotedRevisionName = $dbh->quote($RevisionName);
+	# quote everything going into the database
+	my $QuotedRevisionName = $dbh->quote($RevisionName);
 
-   $sql = "insert into element_revision (element_id, revision_name) values ($ElementID, $QuotedRevisionName)";
+	$sql = "insert into element_revision (element_id, revision_name) values ($ElementID, $QuotedRevisionName)";
  
-   print "sql = '$sql'\n";
+	print "sql = '$sql'\n";
  
-   if (!$debug) {
-      $sth = $dbh->prepare($sql);
-      if (!$sth->execute) {
-              Sys::Syslog::syslog('warning', "Could not execute sql");
-              die "Could not execute SQL $sql ... maybe invalid?";
-              }
+	if (!$debug) {
+		$sth = $dbh->prepare($sql);
+		if (!$sth->execute) {
+			Sys::Syslog::syslog('warning', "Could not execute sql " . $dbh->err . " " . $dbh->errstr);
+			die "Could not execute SQL $sql ... maybe invalid?";
+		}
 
-   $sth->finish();
-   }
+		$sth->finish();
+	}
 }
 
 sub handle_message_end {
