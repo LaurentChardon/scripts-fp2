@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# $Id: port.pm,v 1.8 2001-11-11 08:35:54 dan Exp $
+# $Id: port.pm,v 1.9 2001-11-11 16:43:40 dan Exp $
 #
 
 package FreshPorts::Port;
@@ -31,6 +31,7 @@ sub _initialize {
 	$this->{short_description}	= '';
 	$this->{long_description}	= '';
 	$this->{version}			= '';
+	$this->{revision}			= '';
 	$this->{maintainer}			= '';
 	$this->{homepage}			= '';
 	$this->{master_sites}		= '';
@@ -60,6 +61,7 @@ sub _GetValuesFromRow {
 	$this->{short_description}	= $row->{short_description};
 	$this->{long_description}	= $row->{long_description};
 	$this->{version}			= $row->{version};
+	$this->{revision}			= $row->{revision};
 	$this->{maintainer}			= $row->{maintainer};
 	$this->{homepage}			= $row->{homepage};
 	$this->{master_sites}		= $row->{master_sites};
@@ -109,6 +111,7 @@ sub save {
 				short_description	= " . $dbh->quote($this->{short_description})	. ", \
 				long_description	= " . $dbh->quote($this->{long_description})	. ", \
 				version				= " . $dbh->quote($this->{version})				. ", \
+				revision			= " . $dbh->quote($this->{revision})			. ", \
 				maintainer			= " . $dbh->quote($this->{maintainer})			. ", \
 				homepage			= " . $dbh->quote($this->{homepage})			. ", \
 				master_sites		= " . $dbh->quote($this->{master_sites})		. ", \
@@ -377,13 +380,13 @@ sub ExtractValuesFromMakefile {
 	#
 	mkdir "pkg",0;
 
-	$makecommand = "make -V PORTNAME -V PKGNAME -V DESCR -V CATEGORIES -V PORTVERSION " .
+	$makecommand = "make -V PORTNAME -V PKGNAME -V DESCR -V CATEGORIES -V PORTVERSION -V PORTREVISION" .
 		"-V COMMENT -V MAINTAINER -V EXTRACT_SUFX -V MASTER_SITES " .
 		"-V BUILD_DEPENDS -V RUN_DEPENDS -V FORBIDDEN -V BROKEN -f $MakefileDirectory/$FreshPorts::Constants::FILE_MAKEFILE";
 
 	print "makecommand = $makecommand\n";
 
-	(my $portname, my $packagename, my $descrpath, my $categories, my $portversion, my $commentfile,
+	(my $portname, my $packagename, my $descrpath, my $categories, my $portversion, my $portrevision, my $commentfile,
 	 my $maintainer, my $extractsuffix, my $mastersites, my $builddepends,
 	 my $rundepends, my $forbidden, my $broken) = split(/\n/s, `$makecommand`);
 
@@ -406,6 +409,7 @@ sub ExtractValuesFromMakefile {
 		print " 3 $descrpath\n";
 		print " 4 $categories\n";
 		print " 5 $portversion\n";
+		print " 6 $portrevision\n";
 		print " 6 $commentfile\n";
 		print " 7 $maintainer\n";
 		print " 8 $extractsuffix\n";
@@ -447,6 +451,7 @@ sub ExtractValuesFromMakefile {
 		$this->{short_description}	= $shortdescription;
 		$this->{long_description}	= $longdescription;
 		$this->{version}			= $portversion;
+		$this->{revision}			= $portrevision;
 		$this->{maintainer}			= $maintainer;
 		$this->{homepage}			= $homepage;
 		$this->{master_sites}		= $mastersites;
@@ -457,11 +462,6 @@ sub ExtractValuesFromMakefile {
 		$this->{forbidden}			= $forbidden;
 		$this->{broken}				= $broken;
 
-
-#		$result = PortUpdate ($Port, $portname, $Category, $descrpath, $categories, $portversion,
-#						$commentfile, $maintainer, $extractsuffix, $mastersites, $builddepends,
-#						$rundepends, $shortdescription, $longdescription, $homepage, $packageexists, $forbidden, 
-#						$broken, $dbh);
 	} else {
 		$result = -1;
 	}
