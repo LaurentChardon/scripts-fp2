@@ -170,7 +170,8 @@ print "SETTING CATEGORY =  $port->{category_id}\n";
 	return %ListOfPorts;
 }
 
-sub SaveChangesToPortsTree($;$;$) {
+sub SaveChangesToPortsTree($;$;$;$) {
+	my $commit_date		= shift;
 	my $commit_log_id	= shift;
 	my $Files			= shift;
 	my $dbh				= shift;
@@ -218,6 +219,9 @@ sub SaveChangesToPortsTree($;$;$) {
 	_RecordPortFilesTouchedByThatCommit($commit_log_id, $Files, \%ListOfPorts, $dbh);
 
 	_DeleteDeletedPorts(\%ListOfPorts, $dbh);
+
+	# create the daily summaries
+	CreateDailySummary($commit_date, $dbh);
 
 	return %ListOfPorts;
 }
@@ -346,6 +350,97 @@ sub _DeleteDeletedPorts($;$) {
 		}
 	}
 }
+
+sub CreateDailySummary($;$) {
+#
+# create the daily summary for the supplied date.
+# CommitDateStart should be the commit date of the message
+# which prompted the database update in the first place.
+#
+
+	my $CommitDateStart = shift;
+	my $dbh             = shift;
+
+	my @myrow;
+
+	my $sql =	"select ports.id, element.name, ports.version " .
+				"from ports, commit_log, commit_log_port, element ".
+				"where ports.id                      = commit_log_port.port_id ".
+				"  and commit_log_port.commit_log_id = commit_log.id ".
+				"  and element.id                    = ports.element_id ".
+				"  and commit_log.commit_date between '$CommitDateStart'::timestamp and '$CommitDateStart'::timestamp + INTERVAL '1 DAY' " .
+				"order by commit_log.commit_date desc";
+
+	print "\$sql='$sql'<BR>\n";
+
+	my $sth = $dbh->prepare($sql);
+
+	$sth->execute ||
+		die "Could not execute SQL statement\n--$sql--\n... maybe invalid?";
+
+
+	print "$sql\n";
+
+#	if ($sth->num_rows) {
+#		print "$sth->num_rows rows in that result\n";
+#	}
+
+#	print "press enter to continue"; <STDIN>;
+
+	umask(02);
+	# create the output file name gradually, ensuring the directories exist
+
+	my $OutputFile = $FreshPorts::Config::DailySummaryDir . "/" . substr($CommitDateStart, 0, 4);
+
+	if (-d $OutputFile) {
+		print "'$OutputFile' exists\n";
+	} else {
+		print "'$OutputFile' does not exist\n";
+		print "   trying to mkdir '$OutputFile'\n";
+		if (mkdir $OutputFile, 0775) {
+		} else {
+			print "Could not create directory $OutputFile\n";
+			return 1;
+		}
+	}
+
+	$OutputFile .= "/" . substr($CommitDateStart, 5, 2);
+	if (-d $OutputFile) {
+		print "'$OutputFile' exists\n";
+	} else {
+		print "   trying to mkdir '$OutputFile'\n";
+		if (mkdir $OutputFile, 0775) {
+		} else {
+		print "Could not create directory $OutputFile\n";
+			return 2;
+		}
+	}
+
+	$OutputFile .= "/" .  substr($CommitDateStart, 8, 2) . ".inc";
+	print "   trying to open '$OutputFile'\n";
+	open FILE, ">$OutputFile"  || die "Could not open $OutputFile";
+   
+	if (*FILE) {
+		print "that file was opened.  now writing output\n";
+		my $count =0;
+		while (@myrow = $sth->fetchrow_array) {
+			print FILE '<a href="port-description.php3?port=';
+			print FILE $myrow[0] . '"><font size="-1">' . $myrow[1] . " ";
+			print FILE $myrow[2] . "</font></a><br>\n";     
+			$count++;
+		}
+
+		print "i wrote out $count records\n";
+
+		close FILE;
+	} else {
+		print "could not open $OutputFile\n";
+		return 3;
+	}
+   
+	return 0;
+}
+
 
 
 
