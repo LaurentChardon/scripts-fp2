@@ -170,8 +170,7 @@ print "SETTING CATEGORY =  $port->{category_id}\n";
 	return %ListOfPorts;
 }
 
-sub SaveChangesToPortsTree($;$;$;$) {
-	my $commit_date		= shift;
+sub SaveChangesToPortsTree($;$;$) {
 	my $commit_log_id	= shift;
 	my $Files			= shift;
 	my $dbh				= shift;
@@ -224,9 +223,6 @@ sub SaveChangesToPortsTree($;$;$;$) {
 		_RecordPortFilesTouchedByThatCommit($commit_log_id, $Files, \%ListOfPorts, $dbh);
 
 		_DeleteDeletedPorts(\%ListOfPorts, $dbh);
-
-		# create the daily summaries
-		CreateDailySummary($commit_date, $dbh);
 	}
 
 	return %ListOfPorts;
