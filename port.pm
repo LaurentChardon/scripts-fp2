@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-# $Id: port.pm,v 1.6 2001-11-10 01:32:44 dan Exp $
+# $Id: port.pm,v 1.7 2001-11-11 02:10:30 dan Exp $
 #
 
 package FreshPorts::Port;
@@ -313,7 +313,7 @@ sub GetNeedsRefreshForNewPort {
 			print "converted data COMMENT = $COMMENT\n";
 
 			my $entry = $FreshPorts::Constants::FILE_DESCRIPTION;
-			if ($DESCR eq "$FreshPorts::Config::path_to_ports/$category/$port/$entry") {
+			if ($DESCR ne "$FreshPorts::Config::path_to_ports/$category/$port/$entry") {
 				print "this port has it's own $entry\n";
 				my $index = $FreshPorts::Constants::FilesWhichPromptRefresh{$entry};
 				if ($index) {
@@ -327,7 +327,7 @@ sub GetNeedsRefreshForNewPort {
 			$entry = $FreshPorts::Constants::FILE_COMMENT;
 
 			$COMMENT = File::PathConvert::realpath($COMMENT);
-			if ($COMMENT eq "$FreshPorts::Config::path_to_ports/$category/$port/$entry") {
+			if ($COMMENT ne "$FreshPorts::Config::path_to_ports/$category/$port/$entry") {
 				print "this port has it's own $entry\n";
 				my $index = $FreshPorts::Constants::FilesWhichPromptRefresh{$entry};
 				if ($index) {
@@ -338,13 +338,14 @@ sub GetNeedsRefreshForNewPort {
 				print "this port uses $COMMENT\n";
 			}
 
-			print "after all that, needs_refresh = $needs_refresh\n";
 		} else {
 			print "error executing make command: " . ($? >> 8) . "\n";
 			Sys::Syslog::syslog('warning', "error executing make command: Error Code = " . ($? >> 8));
 			die "error executing make command: Error Code = " . ($? >> 8) . "\n";
 		}
 	}
+
+	print "\nand from GetNeedsRefreshForNewPort we get needs_refresh = $needs_refresh\n";
 
 	return $needs_refresh;
 }
