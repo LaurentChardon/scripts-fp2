@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-# $Id: port.pm,v 1.4 2001-11-09 23:26:46 dan Exp $
+# $Id: port.pm,v 1.5 2001-11-10 01:28:07 dan Exp $
 #
 
 package FreshPorts::Port;
@@ -27,6 +27,20 @@ sub _initialize {
 	# refresh this port.
 	#
 	$this->{needs_refresh} = -1;
+
+	$this->{portname}			= '';
+	$this->{short_description}	= '';
+	$this->{long_description}	= '';
+	$this->{version}			= '';
+	$this->{maintainer}			= '';
+	$this->{homepage}			= '';
+	$this->{master_sites}		= '';
+	$this->{extract_suffix}		= '';
+	$this->{package_exists}		= '';
+	$this->{depends_build}		= '';
+	$this->{depends_run}		= '';
+	$this->{forbidden}			= '';
+	$this->{broken}				= '';
 }
 
 sub _GetValuesFromRow {
@@ -75,8 +89,20 @@ sub save {
 
 		$sql = "update ports  \
 				set \
-				needs_refresh	= $this->{needs_refresh} \
-				 where id = $this->{id}";
+				needs_refresh		= $this->{needs_refresh},
+				short_description	= " . $dbh->quote($this->{short_description})	. ", \
+				long_description	= " . $dbh->quote($this->{long_description})	. ", \
+				version				= " . $dbh->quote($this->{version})				. ", \
+				maintainer			= " . $dbh->quote($this->{maintainer})			. ", \
+				homepage			= " . $dbh->quote($this->{homepage})			. ", \
+				master_sites		= " . $dbh->quote($this->{master_sites})		. ", \
+				extract_suffix		= " . $dbh->quote($this->{package_exists})		. ", \
+				depends_build		= " . $dbh->quote($this->{depends_build})		. ", \
+				depends_run			= " . $dbh->quote($this->{depends_run})			. ", \
+				forbidden			= " . $dbh->quote($this->{forbidden})			. ", \
+				broken				= " . $dbh->quote($this->{broken})				. ", \
+				last_commit_id		= $this->{last_commit_id} \
+				where id = $this->{id}";
 		$sth = $this->{dbh}->prepare($sql);
 		$sth->execute ||
 			die "Could not execute SQL $sql ... maybe invalid? " . $dbh->errstr;
@@ -217,13 +243,6 @@ sub GetNeedsRefreshForNewPort {
 	my $category		= $this->{category};
 	my $port			= $this->{name};
 
-#	if (!$port) {
-#		
-#	}
-#
-#	if (!$category) {
-#	}
-
 	print "category = $category\n";
 	print "port     = $port\n";
 
@@ -322,21 +341,9 @@ sub ExtractValuesFromMakefile {
 	my $this = shift;
 
 	my $result;
+	my $makecommand;
 
 	my $MakefileDirectory = "$FreshPorts::Config::path_to_ports/$this->{category}/$this->{name}";
-
-	# we create this directory because it helps us to locate problems
-	#
-	# create this directory to catch errors
-	# such as the pre-everything having only one ':'
-	#
-	mkdir "pkg",0;
-
-	my $makecommand = "make -V PORTNAME -V PKGNAME -V DESCR -V CATEGORIES -V PORTVERSION " .
-		"-V COMMENT -V MAINTAINER -V EXTRACT_SUFX -V MASTER_SITES " .
-		"-V BUILD_DEPENDS -V RUN_DEPENDS -V FORBIDDEN -V BROKEN -f $MakefileDirectory/$FreshPorts::Constants::FILE_MAKEFILE";
-
-	print "makecommand = $makecommand\n";
 
 	#
 	# if we don't change the working dir, stuff like descrpath will not
@@ -346,9 +353,25 @@ sub ExtractValuesFromMakefile {
 	#
 	chdir "$MakefileDirectory";
 
+	# we create this directory because it helps us to locate problems
+	#
+	# create this directory to catch errors
+	# such as the pre-everything having only one ':'
+	#
+	mkdir "pkg",0;
+
+	$makecommand = "make -V PORTNAME -V PKGNAME -V DESCR -V CATEGORIES -V PORTVERSION " .
+		"-V COMMENT -V MAINTAINER -V EXTRACT_SUFX -V MASTER_SITES " .
+		"-V BUILD_DEPENDS -V RUN_DEPENDS -V FORBIDDEN -V BROKEN -f $MakefileDirectory/$FreshPorts::Constants::FILE_MAKEFILE";
+
+	print "makecommand = $makecommand\n";
+
 	(my $portname, my $packagename, my $descrpath, my $categories, my $portversion, my $commentfile,
 	 my $maintainer, my $extractsuffix, my $mastersites, my $builddepends,
 	 my $rundepends, my $forbidden, my $broken) = split(/\n/s, `$makecommand`);
+
+	# save this for later reference
+	$result = $?;
 
 	# remove previously created directory
 	rmdir "pkg";
@@ -357,7 +380,7 @@ sub ExtractValuesFromMakefile {
 	# we need to check this return value.  if it fails, we need to know
 	#
 
-	if ($? == 0) {
+	if ($result == 0) {
 
 		print " 0 $this->{name}\n";
 		print " 1 $portname\n";
@@ -392,6 +415,16 @@ sub ExtractValuesFromMakefile {
 
 		print "\n ---------------------------------------- \n";
 
+		# convert a few values to zero if not defined.
+		if (!defined($forbidden)) {
+			$forbidden = '';
+		}
+
+		if (!defined($broken)) {
+			$broken = '';
+		}
+
+		# put everything into the hash...
 
 		$this->{portname}			= $portname;
 		$this->{short_description}	= $shortdescription;
@@ -404,7 +437,6 @@ sub ExtractValuesFromMakefile {
 		$this->{package_exists}		= $packageexists;
 		$this->{depends_build}		= $builddepends;
 		$this->{depends_run}		= $rundepends;
-		$this->{last_commit_id}		= 
 		$this->{forbidden}			= $forbidden;
 		$this->{broken}				= $broken;
 
@@ -549,7 +581,5 @@ sub _PackageExists($) {
 
 	return $exists;
 }
-
-
 
 1;
