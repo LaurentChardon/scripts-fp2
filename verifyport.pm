@@ -195,33 +195,39 @@ sub SaveChangesToPortsTree($;$;$;$) {
 	%ListOfPorts = _CompileListOfPorts($commit_log_id, $Files, $dbh);
 
 	#
-	# for each port, ensure that we save away the new needs_refresh value
-	# This will also create any ports which need to be created
+	# only do this stuff if we actually have any ports to update...
 	#
-	while (my ($portname, $port) = each %ListOfPorts) {
-		print "port = $portname, port_id = '";
-		if (defined($port->{id})) {
-			print $port->{id};
+	if (scalar %ListOfPorts) {
+
+		#
+		# for each port, ensure that we save away the new needs_refresh value
+		# This will also create any ports which need to be created
+		#
+		while (my ($portname, $port) = each %ListOfPorts) {
+			print "port = $portname, port_id = '";
+			if (defined($port->{id})) {
+				print $port->{id};
+			}
+
+			print "', category_id='";
+			if (defined($port->{category_id})) {
+				print $port->{category_id};
+			}
+
+			print "', needs_refresh='$port->{needs_refresh}'\n";
+
+			$port->{last_commit_id} = $commit_log_id;
+
+			$port->save();
 		}
 
-		print "', category_id='";
-		if (defined($port->{category_id})) {
-			print $port->{category_id};
-		}
+		_RecordPortFilesTouchedByThatCommit($commit_log_id, $Files, \%ListOfPorts, $dbh);
 
-		print "', needs_refresh='$port->{needs_refresh}'\n";
+		_DeleteDeletedPorts(\%ListOfPorts, $dbh);
 
-		$port->{last_commit_id} = $commit_log_id;
-
-		$port->save();
+		# create the daily summaries
+		CreateDailySummary($commit_date, $dbh);
 	}
-
-	_RecordPortFilesTouchedByThatCommit($commit_log_id, $Files, \%ListOfPorts, $dbh);
-
-	_DeleteDeletedPorts(\%ListOfPorts, $dbh);
-
-	# create the daily summaries
-	CreateDailySummary($commit_date, $dbh);
 
 	return %ListOfPorts;
 }
@@ -321,6 +327,8 @@ sub RefreshAllPortsTouchedByCommit($) {
 
 		$port->RefreshFromFiles();
 	}
+
+	print "# # # # done refreshing ports # # # #\n\n";
 }
 
 sub _DeleteDeletedPorts($;$) {
