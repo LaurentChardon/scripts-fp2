@@ -1,11 +1,12 @@
 #!/usr/bin/perl -w
 
 use strict;
-use portschange;
+use lib '/usr/local/etc/freshports/updates';
+use ports;
  
 use DBI;
 
-my $dbh = DBI->connect('dbi:mysql:freshportschange','root','xyzzy');
+my $dbh = DBI->connect('dbi:mysql:freshports','root','xyzzy');
 
 my $maxlength=0;
 my $dirname='';
@@ -32,7 +33,7 @@ while (@row=$sth->fetchrow_array) {
    print "now processing @row\n";
    push @PORTS, "$row[1]:$row[2]:$row[3]"
 }
-
+ 
 #print "press enter to continue ";<STDIN>;
 
 foreach $porttorefresh (@PORTS) {
