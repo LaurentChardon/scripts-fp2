@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# $Id: load_xml_into_db.pl,v 1.7 2001-11-09 04:08:59 dan Exp $
+# $Id: load_xml_into_db.pl,v 1.8 2001-11-10 16:40:58 dan Exp $
 #
 #
 # Parse cvs messages in XML format so they can be put into a database
@@ -17,7 +17,10 @@
 #  7 - this messages does not deal with the ports subsystem.
 #
 
-#use strict;
+#we make a great deal of use of a global variable Updates.  We should fix that up.
+# use strict;
+
+use lib '/home/lists-test/scripts';
 
 require Sys::Syslog;
 
@@ -53,6 +56,9 @@ my %ValidFileActions = (	$FreshPorts::Constants::ADD		=> "A",
 Sys::Syslog::setlogsock('unix');
 Sys::Syslog::openlog('FreshPorts', 'cons, pid', 'user');
 
+my %Updates;
+
+
 &main;
 exit;
 
@@ -63,7 +69,6 @@ exit;
 sub main {
 
 	my $inputfile;
-	my %Updates;
 
 	my $p = XML::Node->new();
 
@@ -85,7 +90,7 @@ sub main {
 		exit 1;
 	}
 
-	SetupParser(Updates, $p);
+	SetupParser($p);
 
 	print "Processing file [$inputfile]...\n";
 
@@ -106,60 +111,59 @@ sub main {
 	}
 }
 
-sub SetupParser($;$) {
-   $Updates = shift();
-   $p       = shift();
+sub SetupParser($) {
+	my $p = shift;
 
-   $p->register(">UPDATES",									"start" => \&handle_updates_start);
-   $p->register(">UPDATES>UPDATE",							"start" => \&handle_update_start);
+	$p->register(">UPDATES",								"start" => \&handle_updates_start);
+	$p->register(">UPDATES>UPDATE",							"start" => \&handle_update_start);
 
-   $p->register(">UPDATES>UPDATE>DATE:Year",				"attr" => \$Updates{dateyear});
-   $p->register(">UPDATES>UPDATE>DATE:Month",				"attr" => \$Updates{datemonth});
-   $p->register(">UPDATES>UPDATE>DATE:Day",					"attr" => \$Updates{dateday});
+	$p->register(">UPDATES>UPDATE>DATE:Year",				"attr" => \$Updates{dateyear});
+	$p->register(">UPDATES>UPDATE>DATE:Month",				"attr" => \$Updates{datemonth});
+	$p->register(">UPDATES>UPDATE>DATE:Day",				"attr" => \$Updates{dateday});
 
-   $p->register(">UPDATES>UPDATE>TIME:Hour",				"attr" => \$Updates{timehour});
-   $p->register(">UPDATES>UPDATE>TIME:Minute",				"attr" => \$Updates{timeminute});
-   $p->register(">UPDATES>UPDATE>TIME:Second",				"attr" => \$Updates{timesecond});
-   $p->register(">UPDATES>UPDATE>TIME:Timezone",			"attr" => \$Updates{timezone});
+	$p->register(">UPDATES>UPDATE>TIME:Hour",				"attr" => \$Updates{timehour});
+	$p->register(">UPDATES>UPDATE>TIME:Minute",				"attr" => \$Updates{timeminute});
+	$p->register(">UPDATES>UPDATE>TIME:Second",				"attr" => \$Updates{timesecond});
+	$p->register(">UPDATES>UPDATE>TIME:Timezone",			"attr" => \$Updates{timezone});
 
-   $p->register(">UPDATES>UPDATE>OS:Id",					"attr" => \$Updates{os});
-   $p->register(">UPDATES>UPDATE>OS:Branch",				"attr" => \$Updates{branch});
-   $p->register(">UPDATES>UPDATE>OS",						"end"  => \&handle_os_end);
+	$p->register(">UPDATES>UPDATE>OS:Id",					"attr" => \$Updates{os});
+	$p->register(">UPDATES>UPDATE>OS:Branch",				"attr" => \$Updates{branch});
+	$p->register(">UPDATES>UPDATE>OS",						"end"  => \&handle_os_end);
         
-   $p->register(">UPDATES>UPDATE>LOG",						"char" => \$Updates{log});
+	$p->register(">UPDATES>UPDATE>LOG",						"char" => \$Updates{log});
 
-   $p->register(">UPDATES>UPDATE>PEOPLE>UPDATER:Handle",	"attr" => \$Updates{committer});
-   $p->register(">UPDATES>UPDATE>PEOPLE>UPDATER",			"end"  => \&handle_updater_end);
+	$p->register(">UPDATES>UPDATE>PEOPLE>UPDATER:Handle",	"attr" => \$Updates{committer});
+	$p->register(">UPDATES>UPDATE>PEOPLE>UPDATER",			"end"  => \&handle_updater_end);
 
-   $p->register(">UPDATES>UPDATE>MESSAGE:Id",				"attr" => \$Updates{MessageId});
+	$p->register(">UPDATES>UPDATE>MESSAGE:Id",				"attr" => \$Updates{MessageId});
 
-   $p->register(">UPDATES>UPDATE>MESSAGE:Subject",			"attr" => \$Updates{MessageSubject});
-
-
-   $p->register(">UPDATES>UPDATE>MESSAGE>DATE:Year",		"attr" => \$Updates{messageyear});
-   $p->register(">UPDATES>UPDATE>MESSAGE>DATE:Month",		"attr" => \$Updates{messagemonth});
-
-   $p->register(">UPDATES>UPDATE>MESSAGE>DATE:Day",			"attr" => \$Updates{messageday});
-
-   $p->register(">UPDATES>UPDATE>MESSAGE>TIME:Hour",		"attr" => \$Updates{messagehour});
-   $p->register(">UPDATES>UPDATE>MESSAGE>TIME:Minute",		"attr" => \$Updates{messageminute});
-   $p->register(">UPDATES>UPDATE>MESSAGE>TIME:Second",		"attr" => \$Updates{messagesecond});
-   $p->register(">UPDATES>UPDATE>MESSAGE>TIME:Timezone",	"attr" => \$Updates{messagezone});
-
-   $p->register(">UPDATES>UPDATE>MESSAGE>TO:Email",			"attr" => \$Updates{MessageTo});
-   $p->register(">UPDATES>UPDATE>MESSAGE>TO",				"end"  => \&handle_messageto_end);
-
-   $p->register(">UPDATES>UPDATE>MESSAGE",					"end"  => \&handle_message_end);
-
-   $p->register(">UPDATES>UPDATE>FILES>FILE:Path",			"attr" => \$Updates{FilePath});
-   $p->register(">UPDATES>UPDATE>FILES>FILE:Action",		"attr" => \$Updates{FileAction});
-   $p->register(">UPDATES>UPDATE>FILES>FILE:Revision",		"attr" => \$Updates{FileRevision});
-
-   $p->register(">UPDATES>UPDATE>FILES>FILE",				"end"  => \&handle_file_end);
+	$p->register(">UPDATES>UPDATE>MESSAGE:Subject",			"attr" => \$Updates{MessageSubject});
 
 
-   $p->register(">UPDATES>UPDATE",							"end" => \&handle_update_end);
-   $p->register(">UPDATES",									"end" => \&handle_updates_end);
+	$p->register(">UPDATES>UPDATE>MESSAGE>DATE:Year",		"attr" => \$Updates{messageyear});
+	$p->register(">UPDATES>UPDATE>MESSAGE>DATE:Month",		"attr" => \$Updates{messagemonth});
+
+	$p->register(">UPDATES>UPDATE>MESSAGE>DATE:Day",		"attr" => \$Updates{messageday});
+
+	$p->register(">UPDATES>UPDATE>MESSAGE>TIME:Hour",		"attr" => \$Updates{messagehour});
+	$p->register(">UPDATES>UPDATE>MESSAGE>TIME:Minute",		"attr" => \$Updates{messageminute});
+	$p->register(">UPDATES>UPDATE>MESSAGE>TIME:Second",		"attr" => \$Updates{messagesecond});
+	$p->register(">UPDATES>UPDATE>MESSAGE>TIME:Timezone",	"attr" => \$Updates{messagezone});
+
+	$p->register(">UPDATES>UPDATE>MESSAGE>TO:Email",		"attr" => \$Updates{MessageTo});
+	$p->register(">UPDATES>UPDATE>MESSAGE>TO",				"end"  => \&handle_messageto_end);
+
+	$p->register(">UPDATES>UPDATE>MESSAGE",					"end"  => \&handle_message_end);
+
+	$p->register(">UPDATES>UPDATE>FILES>FILE:Path",			"attr" => \$Updates{FilePath});
+	$p->register(">UPDATES>UPDATE>FILES>FILE:Action",		"attr" => \$Updates{FileAction});
+	$p->register(">UPDATES>UPDATE>FILES>FILE:Revision",		"attr" => \$Updates{FileRevision});
+
+	$p->register(">UPDATES>UPDATE>FILES>FILE",				"end"  => \&handle_file_end);
+
+
+	$p->register(">UPDATES>UPDATE",							"end" => \&handle_update_end);
+	$p->register(">UPDATES",								"end" => \&handle_updates_end);
 }
 
 sub handle_updates_start
@@ -548,58 +552,62 @@ sub handle_messageto_end
 }
 
 sub SaveUpdateToDB {
-   my $sth;
-   my $sql;
-   my @row;
+	my $sth;
+	my $sql;
+	my @row;
+	my $message_date;
 
-   my $temp;
+	my $temp;
 
-   my $message_id      = $dbh->quote($Updates{MessageId});
+	my $message_id      = $dbh->quote($Updates{MessageId});
 
-   my $existing_commit_id = GetExistingMessageID($message_id, $dbh);
+	my $existing_commit_id = GetExistingMessageID($message_id, $dbh);
 
-   if (defined($existing_commit_id)) {
-      Sys::Syslog::syslog('warning',"message $message_id has already been added to the database");
-      print "message $message_id has already been added to the database\n";
-      my $nullvalue;
-      return $nullvalue;
-   }
+	if (defined($existing_commit_id)) {
+		Sys::Syslog::syslog('warning',"message $message_id has already been added to the database");
+		print "message $message_id has already been added to the database\n";
+		my $nullvalue;
+		return $nullvalue;
+	}
 
 
-   my $id = FreshPorts::Database::GetNextValue($FreshPorts::Constants::commit_log_seq, $dbh);
+	my $id = FreshPorts::Database::GetNextValue($FreshPorts::Constants::commit_log_seq, $dbh);
 
-   $message_date       = $dbh->quote(
-                            sprintf "%04u/%02u/%02u %02u:%02u:%02u %s", 
-                            $Updates{messageyear}, $Updates{messagemonth},  $Updates{messageday}, 
-                            $Updates{messagehour}, $Updates{messageminute}, $Updates{messagesecond}, 
-                            $Updates{messagezone});
+	$message_date       = $dbh->quote(
+							sprintf "%04u/%02u/%02u %02u:%02u:%02u %s", 
+							$Updates{messageyear}, $Updates{messagemonth},  $Updates{messageday}, 
+							$Updates{messagehour}, $Updates{messageminute}, $Updates{messagesecond}, 
+							$Updates{messagezone});
 
-   my $message_subject = $dbh->quote($Updates{MessageSubject});
-   my $date_added      = "now()";
-   my $commit_date     = $dbh->quote(
-                            sprintf "%04u/%02u/%02u %02u:%02u:%02u %s", 
-                            $Updates{dateyear}, $Updates{datemonth}, $Updates{dateday}, 
-                            $Updates{timehour}, $Updates{timeminute}, $Updates{timesecond}, 
-                            $Updates{timezone});
-   my $committer       = $dbh->quote($Updates{committer});
-   my $description     = $dbh->quote($Updates{log});
+	my $message_subject = $dbh->quote($Updates{MessageSubject});
+	my $date_added      = "now()";
+	my $commit_date     = $dbh->quote(
+							sprintf "%04u/%02u/%02u %02u:%02u:%02u %s", 
+							$Updates{dateyear}, $Updates{datemonth}, $Updates{dateday}, 
+							$Updates{timehour}, $Updates{timeminute}, $Updates{timesecond}, 
+							$Updates{timezone});
+
+	my $committer       = $dbh->quote($Updates{committer});
+	my $description     = $dbh->quote($Updates{log});
    
-   $sql = "insert into commit_log (id, message_id, message_date, message_subject, date_added, commit_date, committer, description, system_version_id) 
-                   values ($id, $message_id, $message_date, $message_subject, $date_added, $commit_date, $committer, $description, $SystemVersionID)";
+	$sql = "insert into commit_log (id, message_id, message_date, message_subject, date_added, commit_date, 
+										committer, description, system_version_id) 
+							values ($id, $message_id, $message_date, $message_subject, $date_added, $commit_date, 
+										$committer, $description, $SystemVersionID)";
 
-   print "SaveUpdateToDB sql = $sql\n";
+	print "SaveUpdateToDB sql = $sql\n";
 
-   if (!$debug) {
-      $sth = $dbh->prepare($sql);
-      if (!$sth->execute) {
-             Sys::Syslog::syslog('warning', "Could not execute SQL $sql");
-             die "Could not execute SQL $sql ... maybe invalid?";
-             }
+	if (!$debug) {
+		$sth = $dbh->prepare($sql);
+		if (!$sth->execute) {
+			Sys::Syslog::syslog('warning', "Could not execute SQL $sql");
+			die "Could not execute SQL $sql ... maybe invalid?";
+		}
 
-      $sth->finish();
-   }
+		$sth->finish();
+	}
 
-   return $id;
+	return $id;
 }
 
 sub GetExistingMessageID($;$) {
@@ -627,71 +635,83 @@ sub GetExistingMessageID($;$) {
 }
 
 sub Pathname_ID($;$) {
-   # obtain the element id from the full path-file name
-   my $filename = shift;
-   my $dbh      = shift;
+	# obtain the element id from the full path-file name
+	my $filename = shift;
+	my $dbh      = shift;
 
-   my $quoted_filename = $dbh->quote($filename);
-   $sql = "select Pathname_ID($quoted_filename)";
+	my $sql;
+	my $sth;
+	my @row;
 
-   print "sql = '$sql'\n";
+	my $quoted_filename = $dbh->quote($filename);
+	$sql = "select Pathname_ID($quoted_filename)";
 
-   $sth = $dbh->prepare($sql);
-   if (!$sth->execute) {
-           Sys::Syslog::syslog('warning', "Could not execute SQL $sql");
-           die "Could not execute SQL $sql ... maybe invalid?";
-   }
+	print "sql = '$sql'\n";
 
-   @row = $sth->fetchrow_array();
+	$sth = $dbh->prepare($sql);
+	if (!$sth->execute) {
+		Sys::Syslog::syslog('warning', "Could not execute SQL $sql");
+		die "Could not execute SQL $sql ... maybe invalid?";
+	}
 
-   $sth->finish();
+	@row = $sth->fetchrow_array();
 
-   return $row[0];
+	$sth->finish();
+
+	return $row[0];
 }
 
 sub SystemVersionIDGet($;$;$) {   
-   # obtain the system_version_id for the given version of this system
-   my $system_id    = shift;
-   my $version_name = shift;
-   my $dbh          = shift;
+	# obtain the system_version_id for the given version of this system
+	my $system_id    = shift;
+	my $version_name = shift;
+	my $dbh          = shift;
 
-   my $quoted_version_name = $dbh->quote($version_name);
-   $sql = "select SystemVersionIDGet($system_id, $quoted_version_name)";
+	my $sql;
+	my $sth;
+	my @row;
 
-   print "sql = '$sql'\n";
+	my $quoted_version_name = $dbh->quote($version_name);
+	$sql = "select SystemVersionIDGet($system_id, $quoted_version_name)";
 
-   $sth = $dbh->prepare($sql);
-   if (!$sth->execute) {
-           Sys::Syslog::syslog('warning', "Could not execute SQL $sql");
-           die "Could not execute SQL $sql ... maybe invalid?";
-   }
+	print "sql = '$sql'\n";
 
-   @row = $sth->fetchrow_array();
+	$sth = $dbh->prepare($sql);
+	if (!$sth->execute) {
+		Sys::Syslog::syslog('warning', "Could not execute SQL $sql");
+		die "Could not execute SQL $sql ... maybe invalid?";
+	}
 
-   $sth->finish();
+	@row = $sth->fetchrow_array();
 
-   return $row[0];
+	$sth->finish();
+
+	return $row[0];
 }
 
 sub SystemIDGet($;$) {
-   # obtain the system_version_id for the given version of this system
-   my $system_name = shift;
-   my $dbh         = shift;
+	# obtain the system_version_id for the given version of this system
+	my $system_name = shift;
+	my $dbh         = shift;
 
-   my $quoted_system_name = $dbh->quote($system_name);
-   $sql = "select SystemIDGet($quoted_system_name)";
+	my $sql;
+	my $sth;
+	my @row;
+
+	my $quoted_system_name = $dbh->quote($system_name);
+	$sql = "select SystemIDGet($quoted_system_name)";
    
-   print "sql = '$sql'\n";
+	print "sql = '$sql'\n";
 
-   $sth = $dbh->prepare($sql);
-   $sth->execute ||
-           die "Could not execute SQL $sql ... maybe invalid?";
+	$sth = $dbh->prepare($sql);
+	$sth->execute ||
+		die "Could not execute SQL $sql ... maybe invalid?";
 
-   @row = $sth->fetchrow_array();
+	@row = $sth->fetchrow_array();
 
-   $sth->finish();
+	$sth->finish();
 
-   return $row[0];
+	return $row[0];
 }
 
 sub SystemVersionElementInsert($;$;$;$) {
