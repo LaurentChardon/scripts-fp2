@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-# $Id: port.pm,v 1.5 2001-11-10 01:28:07 dan Exp $
+# $Id: port.pm,v 1.6 2001-11-10 01:32:44 dan Exp $
 #
 
 package FreshPorts::Port;
@@ -28,7 +28,7 @@ sub _initialize {
 	#
 	$this->{needs_refresh} = -1;
 
-	$this->{portname}			= '';
+#	$this->{portname}			= '';
 	$this->{short_description}	= '';
 	$this->{long_description}	= '';
 	$this->{version}			= '';
@@ -47,12 +47,25 @@ sub _GetValuesFromRow {
 	my $this = shift;
 	my $row  = shift;
 
-	$this->{id} 			= $row->{id};
-	$this->{element_id}		= $row->{element_id};
-	$this->{category_id}	= $row->{category_id};
-	$this->{needs_refresh}	= $row->{needs_refresh};
-	$this->{category}		= $row->{category};
-	$this->{name}			= $row->{name};
+	$this->{id} 				= $row->{id};
+	$this->{element_id}			= $row->{element_id};
+	$this->{category_id}		= $row->{category_id};
+	$this->{needs_refresh}		= $row->{needs_refresh};
+	$this->{category}			= $row->{category};
+	$this->{name}				= $row->{name};
+
+	$this->{short_description}	= $row->{short_description};
+	$this->{long_description}	= $row->{long_description};
+	$this->{version}			= $row->{version};
+	$this->{maintainer}			= $row->{maintainer};
+	$this->{homepage}			= $row->{homepage};
+	$this->{master_sites}		= $row->{master_sites};
+	$this->{extract_suffix}		= $row->{extract_suffix};
+	$this->{package_exists}		= $row->{package_exists};
+	$this->{depends_build}		= $row->{depends_build};
+	$this->{depends_run}		= $row->{depends_run};
+	$this->{forbidden}			= $row->{forbidden};
+	$this->{broken}				= $row->{broken};
 }
 
 # =================================
