@@ -438,10 +438,10 @@ sub CreateDailySummary($;$) {
 			# but in case we have parallel processes, this check
 			# should avoid a nasty little warning message.
 			#
-			if (defined($myrow[2]) {
+			if (defined($myrow[2])) {
 				print FILE $myrow[2];
 			}
-			print "</font></a><br>\n";     
+			print FILE "</font></a><br>\n";     
 			$count++;
 		}
 
