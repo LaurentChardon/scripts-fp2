@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# $Id: load_xml_into_db.pl,v 1.4 2001-11-08 20:26:43 dan Exp $
+# $Id: load_xml_into_db.pl,v 1.5 2001-11-08 21:05:43 dan Exp $
 #
 #
 # Parse cvs messages in XML format so they can be put into a database
@@ -214,35 +214,35 @@ sub handle_update_end
 		print "$action, $path, $revision\n";
 	}
 
-   print "\n --- end of this update --- \n";
+	print "\n --- end of this update --- \n";
 
-   # we don't clear these values until the end of the update
-   undef $Updates{os};
-   undef $Updates{branch};
-   undef $Updates{committerAll};
-   undef $Updates{dateyear};
-   undef $Updates{datemonth};
-   undef $Updates{dateday};
-   undef $Updates{timehour};
-   undef $Updates{timeminute};
-   undef $Updates{timesecond};
-   undef $Updates{timezone};
-   undef $Updates{log};
+	# we don't clear these values until the end of the update
+	undef $Updates{os};
+	undef $Updates{branch};
+	undef $Updates{committerAll};
+	undef $Updates{dateyear};
+	undef $Updates{datemonth};
+	undef $Updates{dateday};
+	undef $Updates{timehour};
+	undef $Updates{timeminute};
+	undef $Updates{timesecond};
+	undef $Updates{timezone};
+	undef $Updates{log};
 
-   undef $Updates{messageyear};
-   undef $Updates{messagemonth};
-   undef $Updates{messageday};
-   undef $Updates{messagehour};
-   undef $Updates{messageminute};
-   undef $Updates{messagesecond};
-   undef $Updates{messagezone};
-   undef $Updates{MessageToAll};
+	undef $Updates{messageyear};
+	undef $Updates{messagemonth};
+	undef $Updates{messageday};
+	undef $Updates{messagehour};
+	undef $Updates{messageminute};
+	undef $Updates{messagesecond};
+	undef $Updates{messagezone};
+	undef $Updates{MessageToAll};
 
-   undef $Updates{MessageSubject};
+	undef $Updates{MessageSubject};
 
-   undef $Updates{MessageId};
-   undef $Updates{MessageToAll};
-   undef $Updates{MessageSubject};
+	undef $Updates{MessageId};
+	undef $Updates{MessageToAll};
+	undef $Updates{MessageSubject};
 }
 
 sub handle_updates_end {
