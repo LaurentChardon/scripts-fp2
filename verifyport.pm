@@ -81,11 +81,11 @@ sub RefreshPortsAssociatedWithMessage($;$) {
 	while (($portname, $port) = each %PortsChecked) {
 		print "port = $portname, port_id = '$port->{id}', category_id='$port->{category_id}', needs_refresh='$port->{needs_refresh}'\n";
 
-		$this->{last_commit_id} = $commit_log_id;
 
 		$port->FetchFilesNeedingRefresh();
 		$port->ExtractValuesFromMakefile();
 		$port->{needs_refresh} = 0;
+		$port->{last_commit_id} = $commit_log_id;
 		$port->save();
 #		MarkPortAsRefreshNeeded($port_id, $commit_id, $action, $entry, $dbh);
 	}
