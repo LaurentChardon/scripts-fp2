@@ -21,7 +21,7 @@ my %PortsChecked;	# contains an element class object.
 					# $PortsChecked{$category . "/" . $port} = [$port_id, $category_id];
 
 sub InitialiseNewMessage() {
-	%PortsChecked = {};
+	undef %PortsChecked;
 }
 
 sub RefreshPortsAssociatedWithMessage($) {
@@ -32,26 +32,19 @@ sub RefreshPortsAssociatedWithMessage($) {
 	# InitialiseNewMessage.
 	#
 
-	my $dbh = shift;
+	my @Files	= shift;
 
-	my $key;		# of the form "$category/$port"
-	my @value;		# of the form "$port_id/$category_id"
-	my $port_id;
-	my $category_id;
-
-	my ($file_name, $commit_id, $action, $entry);
+	my $portname;		# of the form "$category/$port"
+	my $port;			# of the form "$port_id/$category_id"
 
 	print "\n\n\n********** These are the ports which must be updated\n\n\n";
 
-	while (($key, @value) = each %PortsChecked) {
-		$port_id		= $value[0][0];
-		$category_id	= $value[0][1];
-		$file_name		= $value[0][2];
-		$commit_id		= $value[0][3];
-		$action			= $value[0][4];
-		print "key = $key, port_id = '$port_id', category_id='$category_id'\n";
+	print "There are ", scalar(keys %PortsChecked), " key/value pairs in %PortsChecked\n";
 
-		MarkPortAsRefreshNeeded($port_id, $commit_id, $action, $entry, $dbh);
+	while (($portname, $port) = each %PortsChecked) {
+		print "port = $portname, port_id = '$port->{id}', category_id='$port->{category_id}'\n";
+
+#		MarkPortAsRefreshNeeded($port_id, $commit_id, $action, $entry, $dbh);
 	}
 }
 
@@ -94,7 +87,7 @@ sub EnsureCategoryAndPortExist($;$;$) {
 		return;
 	}
 
-	if (index($ignoredirs, $category_name) != -1) {
+	if (index($ignoredirs, $category_name) != -1 || index($ignoredirs, $port_name) != -1) {
 		# certain items are definitely not ports.
 		# so we don't care about them here
 		return;
@@ -113,12 +106,14 @@ sub EnsureCategoryAndPortExist($;$;$) {
 		my $category;
 		my $port;
 
+		print "checking for category='$category_name'\n";
+
 		$category = FreshPorts::Category->new($dbh);
 		$category->{name} = $category_name;
 		my $category_id = $category->FetchByName();
 
 		if (defined($category_id)) {
-			print "Category $category has ID = $category_id\n";
+			print "Category $category_name has ID = $category_id\n";
 		} else {
 			# we need to create this catgory.
 			# remember to grab ports/<category>/pkg/COMMENT
@@ -132,26 +127,28 @@ sub EnsureCategoryAndPortExist($;$;$) {
 			}
 		}
 
+		print "checking for port='$category_name/$port_name'\n";
+
 		$port = FreshPorts::Port->new($dbh);
 		$port->{partialpathname} = "$category_name/$port_name";
 		$port->FetchByPartialPathName();
 		if (defined($port->{id})) {
-			print "Port $port has ID = $port->{id}\n";
+			print "Port $port_name has ID = $port->{id}\n";
 		} else {
 			# we need to create this port
 			# This will be an insert, rather than just an update
 			# we we would do later below
 			Sys::Syslog::syslog('warning', "creating new port $port");
-			$port = CreatePort("$category/$port", $category_id, $dbh);
+			$port = CreatePort("$category_name/$port_name", $category_id, $dbh);
 
 			if (!defined($port->{id})) {
-				Sys::Syslog::syslog('warning', "failed to create new port $category/$port");
-				die "failed to create new port $category/$port";
+				Sys::Syslog::syslog('warning', "failed to create new port $category_name/$port_name");
+				die "failed to create new port $category_name/$port_name";
 			}
 		}
 
 		# add this port to the hash
-		$PortsChecked{$category . "/" . $port} = $port;
+		$PortsChecked{"$category_name/$port_name"} = $port;
 	}
 
 	print "EnsureCategoryAndPortExist ends\n";

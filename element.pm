@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-# $Id: element.pm,v 1.4 2001-11-08 19:03:09 dan Exp $
+# $Id: element.pm,v 1.5 2001-11-08 23:15:03 dan Exp $
 #
 
 package FreshPorts::Element;
@@ -133,8 +133,6 @@ sub FetchByID {
 	$this->{status}				= $row->{status};
 	$this->{pathname}			= $row->{pathname};
 
-	print "found id = $this->{id}\n";
-
 	return $this->{id};
 }
 
@@ -163,8 +161,6 @@ sub FetchByName {
 
 	$sth->finish();
 	$this->{id} = $row[0];
-
-	print "found id = $this->{id}\n";
 
 	# now that we have the ID for this name, let's fetch it...
 	#

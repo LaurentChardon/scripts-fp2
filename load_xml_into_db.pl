@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# $Id: load_xml_into_db.pl,v 1.5 2001-11-08 21:05:43 dan Exp $
+# $Id: load_xml_into_db.pl,v 1.6 2001-11-08 23:15:03 dan Exp $
 #
 #
 # Parse cvs messages in XML format so they can be put into a database
@@ -214,6 +214,8 @@ sub handle_update_end
 		print "$action, $path, $revision\n";
 	}
 
+	FreshPorts::VerifyPort::RefreshPortsAssociatedWithMessage(@Files);
+
 	print "\n --- end of this update --- \n";
 
 	# we don't clear these values until the end of the update
@@ -318,7 +320,7 @@ sub handle_file_end
 		# before we've added it to the tree...
 		#
 
-		if ($FileAction == $FreshPorts::Constants::REMOVE) {
+		if ($FileAction eq $FreshPorts::Constants::REMOVE) {
 			$element->{status} = $FreshPorts::Element::Deleted;
 		}
 		$element_id = $element->save();

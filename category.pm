@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-# $Id: category.pm,v 1.3 2001-11-06 21:00:14 dan Exp $
+# $Id: category.pm,v 1.4 2001-11-08 23:15:03 dan Exp $
 #
 
 package FreshPorts::Category;
@@ -127,8 +127,6 @@ sub FetchByID {
 	$this->{name}			= $row->{name};
 	$this->{description}	= $row->{description};
 
-	print "found id = $this->{id}\n";
-
 	return $this->{id};
 }
 
@@ -166,8 +164,6 @@ sub FetchByName {
 	$this->{element_id}		= $row->{element_id};
 	$this->{name}			= $row->{name};
 	$this->{description}	= $row->{description};
-
-	print "found id = $this->{id}\n";
 
 	return $this->{id};
 }
