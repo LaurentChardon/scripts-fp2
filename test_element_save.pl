@@ -3,29 +3,16 @@
 use strict;
 use DBI;
 use element;
+use database;
 
 require config;
 
-sub GetDBHandle {
-   my $dbh_pg = DBI->connect('DBI:Pg:dbname=' . $FreshPorts::Config::dbname, $FreshPorts::Config::user, $FreshPorts::Config::password);
-   if ($dbh_pg->{Active}) {
-      $dbh_pg->{AutoCommit} = 0;
-
-      if (!$dbh_pg) {
-         Sys::Syslog::syslog('warning', "could not connect to FreshPorts2");
-         die "could not connect to FreshPorts2\n";
-      }
-   }
-
-   return $dbh_pg;
-}
-
 my ($dbh, $element, $name);
 
-$dbh = GetDBHandle();
+$dbh = FreshPorts::Database::GetDBHandle();
 
 #$name = "/delete/me/" . time();
-$name = "/ports/security";
+$name = "/ports/security/logcheck";
 
 print "CREATING element with name = '$name'\n";
 
