@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 #
-# $Id: process_cvs_mail.pl,v 1.1 2001-11-10 16:40:58 dan Exp $
+# $Id: process_cvs_mail.pl,v 1.2 2001-11-16 18:38:02 dan Exp $
 #
 # Process incoming mail from cvs-all mailing list at freebsd.org
 # and convert it to XML output according to the FreshPorts DTD.
@@ -174,17 +174,40 @@ sub GetPeople {
 		push @people, 'SUBMITTER', [ {}, 0, $submitter ];
 	}
 
-        my ($reviewer) = &GetReviewer($message);
-        if ($reviewer) {
-                push @people, 'REVIEWER', [ {}, 0, $reviewer ];
-        }
+	my ($reviewer) = &GetReviewer($message);
+	if ($reviewer) {
+		push @people, 'REVIEWER', [ {}, 0, $reviewer ];
+	}
 
 	my ($approver) = &GetApprover($message);
 	if ($approver) {
 		push @people, 'APPROVER', [ {}, 0, $approver ];
 	}
 
+	my ($obtainedfrom) = &GetObtainedFrom($message);
+	if ($obtainedfrom) {
+		push @people, 'OBTAINED', [ {}, 0, $obtainedfrom ];
+	}
+
 	return @people;
+}
+
+sub GetObtainedFrom {
+        my ($message) = @_;
+        my ($ObtainedFrom);
+
+        my (@lines) = split("\n", $message);
+        
+        for (@lines) {          
+                my ($line) = $_;
+       
+                if ($line =~ /^  Obtained from:/) {
+                        $ObtainedFrom = (split(" ", $line, 3))[2];
+                        last;
+                }
+        }
+
+        return $ObtainedFrom;
 }
 
 sub GetApprover {
@@ -324,11 +347,12 @@ sub GetLog {
 
         # List of phrases marking the end of the log
         my (@log_endings) = (   '  Revision',
- 				'  PR:',
-				'  Submitted by:',
-				'  Approved by:',
-				'  Reviewed by:',
 				'To Unsubscribe' );
+# 				'  PR:',
+#				'  Submitted by:',
+#				'  Approved by:',
+#				'  Reviewed by:',
+#				'To Unsubscribe' );
 
         my (@lines) = split("\n", $message);
 
