@@ -5,43 +5,11 @@ use portschange;
  
 use DBI;
 
-my $BASEDIR = "/usr/ports";
-
-
-
-# * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-# * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-# * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-# * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-#
-# DO NOT MODIFY THE BELOW VALUES WITHOUT ALSO CHANGING THE SAME VALUES IN updates.pl
-
-my %FilesWhichPromptRefresh = (
-   "Makefile"    => "1",
-   "pkg/DESCR"   => "2",
-   "pkg/COMMENT" => "4",
-);
-
-# DO NOT MODIFY THE ABOVE VALUES WITHOUT ALSO CHANGING THE SAME VALUES IN updates.pl
-
-# * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-# * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-# * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-# * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-
-
-my $IGNOREDCATS  = "Attic|distfiles|Mk|Tools|Templates|pkg|distributed|CVS|\\.\\.|\\.";
-
-
-#my $STARTWITHDIR  = "/usr/ports/x11-fonts";
-my $STARTWITHDIR = "";
-
-#print "connecting to freshportschange... press enter to continue";<STDIN>;
-
 my $dbh = DBI->connect('dbi:mysql:freshportschange','root','xyzzy');
 
 my $maxlength=0;
 my $dirname='';
+my $porttorefresh;
 my @PORTS;
 my $sql;
 my $sth;
@@ -65,57 +33,22 @@ while (@row=$sth->fetchrow_array) {
    push @PORTS, "$row[1]:$row[2]:$row[3]"
 }
 
-print "press enter to continue ";<STDIN>;
+#print "press enter to continue ";<STDIN>;
 
-foreach $dirname (@PORTS) {
+foreach $porttorefresh (@PORTS) {
     my $port;
     my $category;
     my $needs_refresh;
     my $FetchWorked;
 
-    print "found $dirname";
+    print "found $porttorefresh";
 
-   ($category, $port, $needs_refresh) = split /:/,$dirname, 3;
+   ($category, $port, $needs_refresh) = split /:/,$porttorefresh, 3;
 
-   $dirname = "$BASEDIR/$category";
-   print " which becomes $dirname : $port\n";
+   RefreshOnePort($category, $port, $needs_refresh, $dbh);
 
-   # now find out what needs to be refreshed....
+#   print "press enter to continue ";<STDIN>;
 
-   print "needs_refresh = $needs_refresh\n";
-
-   $FetchWorked = 1;
-
-   while ((my $key, my $value) = each %FilesWhichPromptRefresh) {
-      if ($needs_refresh & $value) {
-         print "now fetching $key\n";
-         #
-         # should this be path hardcoded?
-         # if it isn't, the chdir which occurs in RefreshPort below
-         # makes this call fail (because it can't find the script).
-         #
-         `sh /home/dan/walkports/fetch-cvs-file.sh $category $port $key`;
- 
-         if (($? >> 8)) {
-            print "that fetch failed.  What do to?\n";
-            $FetchWorked = 0;
-
-            # and we're outta here
-            last;
-         }
-      }
-   }
-
-   print "press enter to continue "; <STDIN>;
-   
-   if ($FetchWorked) {
-      print "refreshing port...\n";
-      RefreshPort($dirname, $port, $dbh);
-   } else {
-      print "can't do anything about that port...\n";
-   }
-
-   print "press enter to continue ";<STDIN>;
 }
 
 $dbh->disconnect();
