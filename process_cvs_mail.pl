@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 #
-# $Id: process_cvs_mail.pl,v 1.5 2001-11-16 19:40:47 dan Exp $
+# $Id: process_cvs_mail.pl,v 1.6 2001-11-23 19:56:46 dan Exp $
 #
 # Process incoming mail from cvs-all mailing list at freebsd.org
 # and convert it to XML output according to the FreshPorts DTD.
@@ -291,7 +291,11 @@ sub GetFiles {
 	my ($found) = 0;
 	for (@lines) {
 		my ($line) = $_;
-		if ($line =~ /Revision/) { $found = 1; next; }
+
+		#
+		# see also GetLog for use of Revision.
+		#
+		if ($line =~ /^  Revision/) { $found = 1; next; }
 		next unless $found == 1;
 
 		last if (length($line) == 0);
@@ -345,7 +349,10 @@ sub GetLog {
         my ($log);
         my ($log_done) = 0;
 
+		#
         # List of phrases marking the end of the log
+		# see also GetFiles for use of Revision
+		#
         my (@log_endings) = (   '  Revision',
 				'To Unsubscribe' );
 
