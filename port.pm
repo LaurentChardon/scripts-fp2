@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-# $Id: port.pm,v 1.2 2001-11-09 17:52:59 dan Exp $
+# $Id: port.pm,v 1.3 2001-11-09 19:35:46 dan Exp $
 #
 
 package FreshPorts::Port;
@@ -75,10 +75,6 @@ sub save {
 
 		$sql = "update ports  \
 				set \
-				is_primary		= " . $dbh->quote($this->{is_primary}) . ", \
-				element_id		= $this->{element_id}, \
-				name			= " . $dbh->quote($this->{name}) . ", \
-				description		= " . $dbh->quote($this->{description}) . " \
 				needs_refresh	= $this->{needs_refresh} \
 				 where id = $this->{id}";
 		$sth = $this->{dbh}->prepare($sql);
