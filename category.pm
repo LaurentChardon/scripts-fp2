@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-# $Id: category.pm,v 1.1.1.1 2001-11-05 05:16:32 dan Exp $
+# $Id: category.pm,v 1.2 2001-11-05 22:37:36 dan Exp $
 #
 
 package FreshPorts::Category;
@@ -9,7 +9,6 @@ require	config;
 
 use strict;
 use config;
-use db_utils;
 
 # =================================
 
@@ -29,48 +28,147 @@ sub new {
 	return $this;
 }
 
-sub create {
-	my $this				= shift;
+sub save {
+	my $this = shift;
 
-	$this->{name}			= shift;
-	$this->{is_primary}		= shift;
+	print "into FreshPorts::Category::save\n";
 
-	print "* * * name = $this->{name}\n";
-
-	# create a new entry in the category table
-	# we only create primary categories here.
-
-	# enhancement:
-	# note that ports/<category>/pkg/COMMENT contains the category description.
-	# one day, we might want to start using that.
 	#
-	# Dan Langille 2001.03.26
+	# if id is supplied, we are updating. otherwise we are inserting.
+	# if element_id is supplied, it will be used.  Otherwise, it will
+	# be derived from name based on /ports/<name>.
+	# A new element will be created if necessary.
 	#
+	# For new categories:
+	# description will be obtained from the contents of
+	# /ports/<name>/pkg/COMMENT
+	# 
 
-#	my $element_id = "$FreshPorts::Config::prefix_ports" . "/$this->{name}";
+	my $dbh = $this->{dbh}; # just a short cut...
+	my $sth;
+	my $sql;
+	my @row;
 
-	$this->{description} = _description_fetch("$this->{name}");
+	# get the name if not supplied
+	if (!$this->{name}) {
+		die "name not supplied";
+	}
 
-	$this->{id} = FreshPorts::Database::GetNextValue($FreshPorts::Config::category_id_seq, $this->{dbh});
+	if (!$this->{description}) {
+		$this->{description} = _description_fetch("$this->{name}");
+	}
 
-	my ($system, $name, $description);
+	if ($this->{id}) {
+		# we are updating
+		$sql = "update categories  \
+				set \
+				is_primary = " . $dbh->quote($this->{is_primary}) . ", \
+				element_id = $this->{element_id}, \
+				name      = " . $dbh->quote($this->{name}) . ", \
+				description = " . $dbh->quote($this->{description}) . " \
+				 where id = $this->{id}";
+		$sth = $this->{dbh}->prepare($sql);
+		$sth->execute ||
+			die "Could not execute SQL $sql ... maybe invalid?";
+	} else {
+		# we are inserting
+		$sql = "select CreateCategory(" . $dbh->quote($this->{name}) . ", \
+				" . $dbh->quote($this->{description}) . ", \
+				" . $dbh->quote($this->{is_primary}) . ")";
 
-	my $system = 
+		print "sql is $sql\n";
 
-	my $sql = "insert into categories (id, is_primary, element_id, name, description) values \
-				($this->{id}, $this->{is_primary}, '$this->{element_id}', $this->{dbh}->quote($this->{name}), $this->{dbh}->quote($this->{description}))";
+		$sth = $this->{dbh}->prepare($sql);
+		$sth->execute ||
+			die "Could not execute SQL $sql ... maybe invalid?";
 
-	print "\n",$sql, "\n";
+		@row = $sth->fetchrow_array();
 
-	my $sth = $this->{dbh}->prepare($sql);
+		$sth->finish();
 
-	$sth->execute ||
-			die "Could not execute insert categories SQL statement ... maybe invalid?";
+		$this->{id} = $row[0];
 
-	$this->{id} = $sth->{'mysql_insertid'};
+	}
 
-	return $this;
+	# after saving, return the ID
+	return $this->{id};
 }
+
+sub FetchByID {
+	my $this	= shift;
+
+	my $dbh;
+	my $sql;
+	my $sth;
+	my $row;
+
+	$dbh		= $this->{dbh};
+
+	$sql = "select * from categories where id = $this->{id}";
+	print "sql = '$sql'\n";
+
+	$sth = $dbh->prepare($sql);
+	if (!$sth->execute) {
+		Sys::Syslog::syslog('warning', "Could not execute SQL $sql");
+		die "Could not execute SQL $sql ... maybe invalid?";
+	}
+
+	$row = $sth->fetchrow_hashref();
+
+	$sth->finish();
+
+	$this->{id} 			= $row->{id};
+	$this->{is_primary}		= $row->{is_primary};
+	$this->{element_id}		= $row->{element_id};
+	$this->{name}			= $row->{name};
+	$this->{description}	= $row->{description};
+
+	print "found id = $this->{id}\n";
+
+	return $this->{id};
+}
+
+sub FetchByName {
+	# obtain the element based on the pathname supplied
+	my $this	= shift;
+
+	my $dbh;
+	my $sql;
+	my $sth;
+	my $row;
+	my $tmp;
+
+	$dbh		= $this->{dbh};
+	if (!$dbh) {
+		die " no database handle!";
+	}
+
+	$tmp = $dbh->quote($this->{name});
+	$sql = "select * from categories where name = $tmp";
+	print "sql = '$sql'\n";
+
+	$sth = $dbh->prepare($sql);
+	if (!$sth->execute) {
+		Sys::Syslog::syslog('warning', "Could not execute SQL $sql");
+		die "Could not execute SQL $sql ... maybe invalid?";
+	}
+
+	$row = $sth->fetchrow_hashref();
+
+	$sth->finish();
+
+	$this->{id} 			= $row->{id};
+	$this->{is_primary}		= $row->{is_primary};
+	$this->{element_id}		= $row->{element_id};
+	$this->{name}			= $row->{name};
+	$this->{description}	= $row->{description};
+
+	print "found id = $this->{id}\n";
+
+	return $this->{id};
+}
+
+1;
 
 # =================================
 
@@ -89,6 +187,9 @@ sub _description_fetch {
 	`sh $FreshPorts::Config::scriptpath/fetch-cvs-file.sh $DESTDIR $SRCDIR $FILE`;
 
 	my $description = _ReadFile("$DESTDIR/$FILE");
+
+	# get rid of the trailing CR/LF.
+	chomp $description;
 
 	return $description;
 }

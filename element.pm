@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-# $Id: element.pm,v 1.2 2001-11-05 06:48:49 dan Exp $
+# $Id: element.pm,v 1.3 2001-11-05 22:37:36 dan Exp $
 #
 
 package FreshPorts::Element;
@@ -51,7 +51,7 @@ sub save {
 		$this->{status} = $Active;
 	}
 
-	# if we don't have the parent id, derive it from the pathanem
+	# if we don't have the parent id, derive it from the pathname
 	if (!$this->{parent_id}) {
 		#
 		# our parent's name is the basename of our pathname
@@ -60,11 +60,15 @@ sub save {
 		if (!$this->{pathname}) {
 			die "neither parent_id nor pathname supplied";
 		}
-		print "pathname = '$this->{pathname}'\n";
+
+		#
+		# my parent's name is my name less the last directory/file.
+		#
 		my $parent_name = File::Basename::dirname($this->{pathname});
-		print "parent name = '$parent_name'\n";
+
 		#
 		# fetch the element with that name
+		#
 		my $parent = FreshPorts::Element->new($dbh);
 		$parent->{pathname} = $parent_name;
 		$this->{parent_id} = $parent->FetchByName();
@@ -87,7 +91,7 @@ sub save {
 		$sql = "select Element_Add(	'$this->{pathname}', \
 									'$this->{directory_file_flag}')";
 
-		print "sql is $sql\n";
+#		print "sql is $sql\n";
 
 		$sth = $this->{dbh}->prepare($sql);
 		$sth->execute ||
@@ -110,7 +114,7 @@ sub FetchByID {
 	my $dbh		= $this->{dbh};
 
 	my $sql = "select *, element_pathname(id) as pathname from element where id = $this->{id}";
-#	print "sql = '$sql'\n";
+	print "sql = '$sql'\n";
 
 	my $sth = $dbh->prepare($sql);
 	if (!$sth->execute) {
@@ -122,12 +126,14 @@ sub FetchByID {
 
 	$sth->finish();
 
-	$this->{id} 			= $row->{id};
-	$this->{name}			= $row->{name};
-	$this->{parent_id}		= $row->{parent_id};
-	$this->{directory_file_flag}	= $row->{directory_file_flag};
-	$this->{status}			= $row->{status};
-	$this->{pathname}		= $row->{pathname};
+	$this->{id} 				= $row->{id};
+	$this->{name}				= $row->{name};
+	$this->{parent_id}			= $row->{parent_id};
+	$this->{directory_file_flag}= $row->{directory_file_flag};
+	$this->{status}				= $row->{status};
+	$this->{pathname}			= $row->{pathname};
+
+	print "found id = $this->{id}\n";
 
 	return $this->{id};
 }
@@ -143,9 +149,9 @@ sub FetchByName {
 
 	my ($sql, $sth, @row);
 
-	print "pathname = '$this->{pathname}'\n";
 	my $tmp = $dbh->quote("things");
 	$sql = "select Pathname_ID(" . $dbh->quote($this->{pathname}) . ")";
+	print "sql = '$sql'\n";
 
 	$sth = $dbh->prepare($sql);
 	if (!$sth->execute) {
@@ -156,9 +162,17 @@ sub FetchByName {
 	@row = $sth->fetchrow_array();
 
 	$sth->finish();
-	print "id = '$row[0]'\n";
 	$this->{id} = $row[0];
-	return $this->FetchByID();
+
+	print "found id = $this->{id}\n";
+
+	# now that we have the ID for this name, let's fetch it...
+	#
+	if ($this->{id}) {
+		return $this->FetchByID();
+	} else {
+		return $this->{id};
+	}
 }
 
 1;

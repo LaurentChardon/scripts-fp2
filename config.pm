@@ -1,5 +1,4 @@
-#
-# $Id: config.pm,v 1.1.1.1 2001-11-05 05:16:32 dan Exp $
+# $Id: config.pm,v 1.2 2001-11-05 22:37:36 dan Exp $
 #
 
 package FreshPorts::Config;

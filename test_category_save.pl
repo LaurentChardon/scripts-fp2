@@ -1,0 +1,86 @@
+#!/usr/bin/perl
+
+use strict;
+use DBI;
+use element;
+use category;
+use Sys::Syslog;
+
+require config;
+
+sub GetDBHandle {
+   my $dbh_pg = DBI->connect('DBI:Pg:dbname=' . $FreshPorts::Config::dbname, $FreshPorts::Config::user, $FreshPorts::Config::password);
+   if ($dbh_pg->{Active}) {
+      $dbh_pg->{AutoCommit} = 0;
+
+      if (!$dbh_pg) {
+         Sys::Syslog::syslog('warning', "could not connect to FreshPorts2");
+         die "could not connect to FreshPorts2\n";
+      }
+   }
+
+   return $dbh_pg;
+}
+
+my ($dbh, $category, $name);
+
+$dbh = GetDBHandle();
+
+$name = "security";
+
+print "CREATING category with name = '$name'\n";
+
+
+$category = FreshPorts::Category->new($dbh);
+$category->{name} = $name;
+$category->{is_primary} = 1;
+
+print "about to save\n";
+
+my $id = $category->save();
+
+if (!$id) {
+	print "no id found....\n";
+}
+
+print "AFTER CREATION\n";
+
+print "id                   = $category->{id}\n";
+print "is_primary           = $category->{is_primary}\n";
+print "element_id           = $category->{element_id}\n";
+print "name                 = $category->{name}\n";
+print "description          = $category->{description}\n";
+
+$category = FreshPorts::Category->new($dbh);
+$category->{name} = $name;
+
+
+print "\nAFTER READING IT BACK IN\n";
+
+$category->FetchByName();
+
+print "id                   = $category->{id}\n";
+print "is_primary           = $category->{is_primary}\n";
+print "element_id           = $category->{element_id}\n";
+print "name                 = $category->{name}\n";
+print "description          = $category->{description}\n";
+
+print "\nAND SAVING IT AGAIN....\n";
+
+$category->{description} = $category->{description} . ' - new';
+$category->save();
+
+$category = FreshPorts::Category->new($dbh);
+$category->{id} = $id;
+print "\nAFTER READING IT BACK IN\n";
+
+$category->FetchByID();
+
+print "id                   = $category->{id}\n";
+print "is_primary           = $category->{is_primary}\n";
+print "element_id           = $category->{element_id}\n";
+print "name                 = $category->{name}\n";
+print "description          = $category->{description}\n";
+
+$dbh->commit();
+$dbh->disconnect();
