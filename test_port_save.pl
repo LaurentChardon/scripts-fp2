@@ -16,7 +16,7 @@ my ($dbh, $port, $name);
 
 $dbh = FreshPorts::Database::GetDBHandle();
 
-$name = "security/acid";
+$name = "security/acid1";
 
 print "CREATING port = '$name'\n";
 
@@ -65,6 +65,17 @@ $port = FreshPorts::Port->new($dbh);
 $port->{id} = $id;
 
 $port->FetchByID();
+
+print "id                   = $port->{id}\n";
+print "element_id           = $port->{element_id}\n";
+print "category_id          = $port->{category_id}\n";
+
+
+print "\n\n\n\ FETCHING by $name\n";
+
+$port = FreshPorts::Port->new($dbh);
+$port->{partialpathname} = $name;
+$port->FetchByPartialPathName();
 
 print "id                   = $port->{id}\n";
 print "element_id           = $port->{element_id}\n";
