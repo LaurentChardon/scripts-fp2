@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# $Id: load_xml_into_db.pl,v 1.12 2001-11-20 17:13:20 dan Exp $
+# $Id: load_xml_into_db.pl,v 1.13 2001-11-20 18:17:39 dan Exp $
 #
 #
 # Parse cvs messages in XML format so they can be put into a database
@@ -20,7 +20,7 @@
 #we make a great deal of use of a global variable Updates.  We should fix that up.
 # use strict;
 
-use lib '/home/dan/src/dev';
+use lib '/home/list/scripts';
 
 require Sys::Syslog;
 
@@ -608,9 +608,9 @@ sub SaveUpdateToDB {
 	my $description     = $dbh->quote($Updates{log});
    
 	$sql = "insert into commit_log (id, message_id, message_date, message_subject, date_added, commit_date, 
-										committer, description, system_branch_id) 
+										committer, description, system_id) 
 							values ($id, $message_id, $message_date, $message_subject, $date_added, $commit_date, 
-										$committer, $description, $SystemBranchID)";
+										$committer, $description, $SystemID)";
 
 	print "SaveUpdateToDB sql = $sql\n";
 
