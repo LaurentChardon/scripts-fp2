@@ -17,10 +17,11 @@ require Sys::Syslog;
 # message.  You must call InitialiseNewMessage() at the start of each
 # new message.
 
-my %PortsChecked; # $PortsChecked{$category . "/" . $port} = [$port_id, $category_id];
+my %PortsChecked;	# contains an element class object.
+					# $PortsChecked{$category . "/" . $port} = [$port_id, $category_id];
 
 sub InitialiseNewMessage() {
-	%PortsChecked = ();
+	%PortsChecked = {};
 }
 
 sub RefreshPortsAssociatedWithMessage($) {
@@ -67,6 +68,8 @@ sub EnsureCategoryAndPortExist($;$;$) {
 	$filename	= shift;
 	$dbh		= shift;
 
+	my $category;
+
 	#
 	# These are the directories/entries
 	# which FreshPorts does not track
@@ -75,15 +78,15 @@ sub EnsureCategoryAndPortExist($;$;$) {
 
 
 	my $subtree;
-	my $category;
-	my $port;
+	my $category_name;
+	my $port_name;
 	my $extra;
 
-	($subtree, $category, $port, $extra) = split/\//,$filename, 4;
+	($subtree, $category_name, $port_name, $extra) = split/\//,$filename, 4;
 
 	print "\nEnsureCategoryAndPortExist starts:\n";
 	print "element_id  = '$element_id'\nfilename = '$filename'\n";
-	print "subtree  = '$subtree'\ncategory = '$category'\nport     = '$port'\nentry    = '$extra'\n";
+	print "subtree  = '$subtree'\ncategory = '$category_name'\nport     = '$port_name'\nentry    = '$extra'\n";
 
 	# first, we ignore all non-port tree items
 	if ($subtree ne "ports") {
@@ -91,7 +94,7 @@ sub EnsureCategoryAndPortExist($;$;$) {
 		return;
 	}
 
-	if (index($ignoredirs, $category) != -1) {
+	if (index($ignoredirs, $category_name) != -1) {
 		# certain items are definitely not ports.
 		# so we don't care about them here
 		return;
@@ -99,12 +102,20 @@ sub EnsureCategoryAndPortExist($;$;$) {
 
 	print "processing above entry...\n";
 
-	if ($PortsChecked{"$category/$port"}) {
-		print " we have already checked $category/$port\n";
+	if ($PortsChecked{"$category_name/$port_name"}) {
+		print " we have already checked $category_name/$port_name\n";
 		# we have already checked this port.
 		# therefore it should already be in the database
 	} else {
-		my $category_id = GetCategory($category, $dbh);
+		#
+		# variables needed only in this block
+		#
+		my $category;
+		my $port;
+
+		$category = FreshPorts::Category->new($dbh);
+		$category->{name} = $category_name;
+		my $category_id = $category->FetchByName();
 
 		if (defined($category_id)) {
 			print "Category $category has ID = $category_id\n";
@@ -113,31 +124,34 @@ sub EnsureCategoryAndPortExist($;$;$) {
 			# remember to grab ports/<category>/pkg/COMMENT
 			Sys::Syslog::syslog('warning', "creating new category $category");
 
-			$category_id = CreateCategory($category, $dbh);
+			$category->{is_primary} = 1;
+			$category_id = $category->save();
 			if (!defined($category_id)) {
 				Sys::Syslog::syslog('warning', "failed to create new category $category");
 				die "failed to create new category $category";
 			}
 		}
 
-		my $port_id = GetPort("$category/$port", $dbh);
-		if (defined($port_id)) {
-			print "Port $port has ID = $port_id\n";
+		$port = FreshPorts::Port->new($dbh);
+		$port->{partialpathname} = "$category_name/$port_name";
+		$port->FetchByPartialPathName();
+		if (defined($port->{id})) {
+			print "Port $port has ID = $port->{id}\n";
 		} else {
 			# we need to create this port
 			# This will be an insert, rather than just an update
 			# we we would do later below
 			Sys::Syslog::syslog('warning', "creating new port $port");
-			$port_id = CreatePort("$category/$port", $category_id, $dbh);
+			$port = CreatePort("$category/$port", $category_id, $dbh);
 
-			if (!defined($port_id)) {
+			if (!defined($port->{id})) {
 				Sys::Syslog::syslog('warning', "failed to create new port $category/$port");
 				die "failed to create new port $category/$port";
 			}
 		}
 
 		# add this port to the hash
-		$PortsChecked{$category . "/" . $port} = [$port_id, $category_id];
+		$PortsChecked{$category . "/" . $port} = $port;
 	}
 
 	print "EnsureCategoryAndPortExist ends\n";
@@ -202,7 +216,7 @@ sub CreatePort($;$;$) {
 	#
 
 	$element = FreshPorts::Element->new($dbh);
-	$element->{pathname} = "/ports/$categoryport";
+	$element->{pathname} = "/$FreshPorts::Config::prefix_ports/$categoryport";
 
 	$element_id = $element->FetchByName();
 
@@ -217,7 +231,7 @@ sub CreatePort($;$;$) {
 
 	$port->save();
 
-	return $port->{id};
+	return $port;
 }
 
 sub CreateCategory($;$) {
