@@ -76,29 +76,34 @@ sub RefreshPortsAssociatedWithMessage($;$) {
 		print ", $commit_log_element_id\n";
 
 		# is this file is in the ports tree?
-		if ($subtree eq $FreshPorts::Config::ports_prefix) {
+		# e.g. ports/LEGAL won't get through here because $port_name will not be defined.
+		if ($subtree eq $FreshPorts::Config::ports_prefix && defined($category_name) && defined($port_name)) {
 			print "yes, this file is in the ports tree\n";
 
-			# find the port for this filename....
-			$port = $PortsChecked{"$category_name/$port_name"};
-			if (!$port) {
-				Sys::Syslog::syslog('warning', "could not find port '$category/$port' in hash.");
-				die "could not find port '$category/$port' in hash.";
-			}
+			if (index($FreshPorts::Constants::IgnoredItems, $category_name) == -1 && index($FreshPorts::Constants::IgnoredItems, $port_name) == -1) {
+				# find the port for this filename....
+				$port = $PortsChecked{"$category_name/$port_name"};
+				if (!$port) {
+					Sys::Syslog::syslog('warning', "could not find port '$category/$port' in hash.");
+					die "could not find port '$category/$port' in hash.";
+				}
 
-			$index = $FreshPorts::Constants::FilesWhichPromptRefresh{$extra};
-			if ($index) {
-				print "yes, it's a File Which Prompts Refresh\n";
-				$port->{needs_refresh} |= $index;
-			}
+				$index = $FreshPorts::Constants::FilesWhichPromptRefresh{$extra};
+				if ($index) {
+					print "yes, it's a File Which Prompts Refresh\n";
+					$port->{needs_refresh} |= $index;
+				}
 
-			#
-			# record which files go with what port...
-			#
-			$commit_log_port->{commit_log_id}			= $commit_log_id;
-			$commit_log_port->{port_id}					= $port->{id};
-			$commit_log_port->{commit_log_element_id}	= $commit_log_element_id;
-			$commit_log_port->save();
+				#
+				# record which files go with what port...
+				#
+				$commit_log_port->{commit_log_id}			= $commit_log_id;
+				$commit_log_port->{port_id}					= $port->{id};
+				$commit_log_port->{commit_log_element_id}	= $commit_log_element_id;
+				$commit_log_port->save();
+			} else {
+				print "... but is on the list of IgnoredItems!\n\n";
+			}
 		}
 	}
 
@@ -162,74 +167,71 @@ sub EnsureCategoryAndPortExist($;$;$) {
 	}
 
 	# first, we ignore all non-port tree items
-	if ($subtree ne "ports") {
-		# we don't process non-ports tree entries
-		return;
-	}
+	if ($subtree eq $FreshPorts::Config::ports_prefix && defined($category_name) && defined($port_name)) {
+		if (index($FreshPorts::Constants::IgnoredItems, $category_name) == -1 && index($FreshPorts::Constants::IgnoredItems, $port_name) == -1) {
 
-	if (index($FreshPorts::Constants::IgnoredItems, $category_name) != -1 || index($FreshPorts::Constants::IgnoredItems, $port_name) != -1) {
-		# certain items are definitely not ports.
-		# so we don't care about them here
-		return;
-	}
+			print "processing above entry...\n";
 
-	print "processing above entry...\n";
+			if ($PortsChecked{"$category_name/$port_name"}) {
+				print " we have already checked $category_name/$port_name\n";
+				# we have already checked this port.
+				# therefore it should already be in the database
+			} else {
+				#
+				# variables needed only in this block
+				#
+				my $category;
+				my $port;
 
-	if ($PortsChecked{"$category_name/$port_name"}) {
-		print " we have already checked $category_name/$port_name\n";
-		# we have already checked this port.
-		# therefore it should already be in the database
-	} else {
-		#
-		# variables needed only in this block
-		#
-		my $category;
-		my $port;
+				print "checking for category='$category_name'\n";
 
-		print "checking for category='$category_name'\n";
+				$category = FreshPorts::Category->new($dbh);
+				$category->{name} = $category_name;
+				my $category_id = $category->FetchByName();
 
-		$category = FreshPorts::Category->new($dbh);
-		$category->{name} = $category_name;
-		my $category_id = $category->FetchByName();
+				if (defined($category_id)) {
+					print "Category $category_name has ID = $category_id\n";
+				} else {
+					# we need to create this catgory.
+					# remember to grab ports/<category>/pkg/COMMENT
+					Sys::Syslog::syslog('warning', "creating new category $category_name");
 
-		if (defined($category_id)) {
-			print "Category $category_name has ID = $category_id\n";
-		} else {
-			# we need to create this catgory.
-			# remember to grab ports/<category>/pkg/COMMENT
-			Sys::Syslog::syslog('warning', "creating new category $category_name");
+					$category->{is_primary} = 1;
+					$category_id = $category->save();
+					if (!defined($category_id)) {
+						Sys::Syslog::syslog('warning', "failed to create new category $category_name");
+						die "failed to create new category $category_name";
+					}
+				}
 
-			$category->{is_primary} = 1;
-			$category_id = $category->save();
-			if (!defined($category_id)) {
-				Sys::Syslog::syslog('warning', "failed to create new category $category_name");
-				die "failed to create new category $category_name";
-			}
-		}
+				print "checking for port='$category_name/$port_name'\n";
 
-		print "checking for port='$category_name/$port_name'\n";
+				$port = FreshPorts::Port->new($dbh);
+				$port->{partialpathname} = "$category_name/$port_name";
+				$port->FetchByPartialPathName();
+				if (defined($port->{id})) {
+					print "Port $port_name has ID = $port->{id}\n";
+				} else {
+					# we need to create this port
+					# This will be an insert, rather than just an update
+					# we we would do later below
+					Sys::Syslog::syslog('warning', "creating new port $port_name");
+					$port = CreatePort($category_name, $port_name, $category_id, $dbh);
 
-		$port = FreshPorts::Port->new($dbh);
-		$port->{partialpathname} = "$category_name/$port_name";
-		$port->FetchByPartialPathName();
-		if (defined($port->{id})) {
-			print "Port $port_name has ID = $port->{id}\n";
-		} else {
-			# we need to create this port
-			# This will be an insert, rather than just an update
-			# we we would do later below
-			Sys::Syslog::syslog('warning', "creating new port $port_name");
-			$port = CreatePort($category_name, $port_name, $category_id, $dbh);
+					if (!defined($port->{id})) {
+						Sys::Syslog::syslog('warning', "failed to create new port $category_name/$port_name");
+						die "failed to create new port $category_name/$port_name";
+					}
+				}
 
-			if (!defined($port->{id})) {
-				Sys::Syslog::syslog('warning', "failed to create new port $category_name/$port_name");
-				die "failed to create new port $category_name/$port_name";
-			}
-		}
+				# add this port to the hash
+				$PortsChecked{"$category_name/$port_name"} = $port;
 
-		# add this port to the hash
-		$PortsChecked{"$category_name/$port_name"} = $port;
-	}
+			} # we've already checked this port
+		
+		} # this is an ignored file
+
+	} # this isn't the ports tree
 
 	print "EnsureCategoryAndPortExist ends\n";
 }
