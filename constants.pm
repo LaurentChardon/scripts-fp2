@@ -1,4 +1,4 @@
-	# $Id: constants.pm,v 1.2 2001-11-11 08:35:54 dan Exp $
+	# $Id: constants.pm,v 1.3 2001-11-20 17:04:31 dan Exp $
 #
 
 package FreshPorts::Constants;
@@ -12,6 +12,7 @@ use strict;
 $FreshPorts::Constants::ports_seq				= "ports_id_seq";
 $FreshPorts::Constants::commit_log_elements_seq	= "commit_log_elements_id_seq";
 $FreshPorts::Constants::commit_log_seq			= "commit_log_id_seq";
+$FreshPorts::Constants::system_branch_seq		= "system_branch_id_seq";
 
 $FreshPorts::Constants::ADD					= 'Add';
 $FreshPorts::Constants::MODIFY				= 'Modify';

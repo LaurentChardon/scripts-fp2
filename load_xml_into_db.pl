@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# $Id: load_xml_into_db.pl,v 1.9 2001-11-11 08:35:54 dan Exp $
+# $Id: load_xml_into_db.pl,v 1.10 2001-11-20 17:04:31 dan Exp $
 #
 #
 # Parse cvs messages in XML format so they can be put into a database
@@ -11,7 +11,7 @@
 #  1 - incorrect calling of script.  check your parameters
 #  2 - this message id is already in the database
 #  3 - No SystemID found for OS  - this OS     isn't being followed by FreshPorts
-#  4 - No SystemVersionID found  - this branch isn't being followed by FreshPorts
+#  4 - No SystemBranchID found   - this branch isn't being followed by FreshPorts
 #  5 - invalid file action found - the file action found wasn't recognized. Check the DTD.
 #  6 - element id was not found  - possible problem adding new element to database.
 #  7 - this messages does not deal with the ports subsystem.
@@ -39,7 +39,7 @@ my $commit_log_id	= 0;
 my $debug			= 0;
 
 my $SystemID;			# the system id for this update.  Usually 'FreeBSD' => 1
-my $SystemVersionID;	# the system version id for this update.  Usually 'HEAD' => 1
+my $SystemBranchID;		# the system version id for this update.  Usually 'HEAD' => 1
 
 my $dbh;
 
@@ -197,15 +197,15 @@ sub handle_os_end {
       die   "No SystemID found for OS = '$Updates{os}'\n";
    }
    
-   $SystemVersionID = SystemVersionIDGet($SystemID, $Updates{branch}, $dbh);
-   if (!defined($SystemVersionID)) {
+   $SystemBranchID = SystemBranchIDGetOrCreate($SystemID, $Updates{branch}, $dbh);
+   if (!defined($SystemBranchID)) {
       $! = 4;
-      Sys::Syslog::syslog('warning', "No SystemVersionID found for OS = '$Updates{branch}'\n");
-      print "No SystemVersionID found for OS = '$Updates{branch}'\n";
-      die   "No SystemVersionID found for OS = '$Updates{branch}'\n";
+      Sys::Syslog::syslog('warning', "No SystemBranchID found for OS = '$Updates{branch}'\n");
+      print "No SystemBranchID found for OS = '$Updates{branch}'\n";
+      die   "No SystemBranchID found for OS = '$Updates{branch}'\n";
    }
    
-   print "OS is '$Updates{os}' ($SystemID) : branch = $Updates{branch} ($SystemVersionID)\n";
+   print "OS is '$Updates{os}' ($SystemID) : branch = $Updates{branch} ($SystemBranchID)\n";
 }
 
 
@@ -412,7 +412,7 @@ print "$FreshPorts::Constants::commit_log_elements_seq\n";
 	# when adding new elements, be sure to record the new revision name.
 	#
 	if ($NewRevision) {
-		SystemVersionElementInsert($SystemVersionID, $element_id, $revisionname, $dbh);
+		SystemBranchElementInsert($SystemBranchID, $element_id, $revisionname, $dbh);
 	}
 
 	#
@@ -608,9 +608,9 @@ sub SaveUpdateToDB {
 	my $description     = $dbh->quote($Updates{log});
    
 	$sql = "insert into commit_log (id, message_id, message_date, message_subject, date_added, commit_date, 
-										committer, description, system_version_id) 
+										committer, description, system_branch_id) 
 							values ($id, $message_id, $message_date, $message_subject, $date_added, $commit_date, 
-										$committer, $description, $SystemVersionID)";
+										$committer, $description, $SystemBranchID)";
 
 	print "SaveUpdateToDB sql = $sql\n";
 
@@ -678,18 +678,19 @@ sub Pathname_ID($;$) {
 	return $row[0];
 }
 
-sub SystemVersionIDGet($;$;$) {   
-	# obtain the system_version_id for the given version of this system
-	my $system_id    = shift;
-	my $version_name = shift;
-	my $dbh          = shift;
+sub SystemBranchIDGetOrCreate($;$;$) {   
+	# obtain the system_branch_id for the given version of this system
+	my $system_id	= shift;
+	my $branch_name	= shift;
+	my $dbh			= shift;
 
 	my $sql;
 	my $sth;
 	my @row;
 
-	my $quoted_version_name = $dbh->quote($version_name);
-	$sql = "select SystemVersionIDGet($system_id, $quoted_version_name)";
+	my $SystemBranchID;
+
+	$sql = "select SystemBranchIDGet($system_id, " . $dbh->quote($branch_name) . :)";
 
 	print "sql = '$sql'\n";
 
@@ -701,13 +702,26 @@ sub SystemVersionIDGet($;$;$) {
 
 	@row = $sth->fetchrow_array();
 
+	$SystemBranchID = $row[0];
+	if (!defined($SystemBranchID)) {
+		my $SystemBranchID = FreshPorts::Database::GetNextValue($FreshPorts::Constants::system_branch_seq, $dbh);
+		$sql = "insert into system_branch (id, system_id, branch_name) values " .
+					" ($SystemBranchID, $SystemID, " . $dbh->quote($branch_name) . ")";
+
+		$sth = $dbh->prepare($sql)
+		if (!$sth->execute) {
+			Sys::Syslog::syslog('warning', "Could not execute SQL $sql");
+			die "Could not execute SQL $sql ... maybe invalid?";
+		}
+	}
+
 	$sth->finish();
 
-	return $row[0];
+	return $SystemBranchID;
 }
 
 sub SystemIDGet($;$) {
-	# obtain the system_version_id for the given version of this system
+	# obtain the system_branch_id for the given version of this system
 	my $system_name = shift;
 	my $dbh         = shift;
 
@@ -731,28 +745,28 @@ sub SystemIDGet($;$) {
 	return $row[0];
 }
 
-sub SystemVersionElementInsert($;$;$;$) {
-   my $SystemVersionID = shift;
-   my $ElementID       = shift;
-   my $RevisionName    = shift;
-   my $dbh             = shift;
+sub SystemBranchElementInsert($;$;$;$) {
+	my $SystemBranchID	= shift;
+	my $ElementID		= shift;
+	my $RevisionName	= shift;
+	my $dbh				= shift;
 
-   my $sth;
-   my $sql;
-   my @row;
+	my $sth;
+	my $sql;
+	my @row;
 
-   my $QuotedRevisionName = $dbh->quote($RevisionName);
-   $sql = "select ElementTagSet($SystemVersionID, $ElementID, $QuotedRevisionName)";
+	my $QuotedRevisionName = $dbh->quote($RevisionName);
+	$sql = "select ElementTagSet($SystemBranchID, $ElementID, $QuotedRevisionName)";
 
-   print "sql = '$sql'\n";
+	print "sql = '$sql'\n";
 
-   if (!$debug) {
-      $sth = $dbh->prepare($sql);
-      $sth->execute ||
-              die "Could not execute SQL $sql ... maybe invalid?";
+	if (!$debug) {
+		$sth = $dbh->prepare($sql);
+		$sth->execute ||
+				die "Could not execute SQL $sql ... maybe invalid?";
 
-      $sth->finish();
-   }
+		$sth->finish();
+	}
 }
 
 sub Element_Add($;$;$) {

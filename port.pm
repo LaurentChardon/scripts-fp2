@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# $Id: port.pm,v 1.9 2001-11-11 16:43:40 dan Exp $
+# $Id: port.pm,v 1.10 2001-11-20 17:04:31 dan Exp $
 #
 
 package FreshPorts::Port;
@@ -380,9 +380,9 @@ sub ExtractValuesFromMakefile {
 	#
 	mkdir "pkg",0;
 
-	$makecommand = "make -V PORTNAME -V PKGNAME -V DESCR -V CATEGORIES -V PORTVERSION -V PORTREVISION" .
-		"-V COMMENT -V MAINTAINER -V EXTRACT_SUFX -V MASTER_SITES " .
-		"-V BUILD_DEPENDS -V RUN_DEPENDS -V FORBIDDEN -V BROKEN -f $MakefileDirectory/$FreshPorts::Constants::FILE_MAKEFILE";
+	$makecommand = "make -V PORTNAME -V PKGNAME -V DESCR -V CATEGORIES -V PORTVERSION -V PORTREVISION " .
+		" -V COMMENT -V MAINTAINER -V EXTRACT_SUFX -V MASTER_SITES " .
+		" -V BUILD_DEPENDS -V RUN_DEPENDS -V FORBIDDEN -V BROKEN -f $MakefileDirectory/$FreshPorts::Constants::FILE_MAKEFILE";
 
 	print "makecommand = $makecommand\n";
 
@@ -402,20 +402,20 @@ sub ExtractValuesFromMakefile {
 
 	if ($result == 0) {
 
-		print " 0 $this->{name}\n";
-		print " 1 $portname\n";
-		print " a $this->{category}\n";
-		print " 2 $packagename\n";
-		print " 3 $descrpath\n";
-		print " 4 $categories\n";
-		print " 5 $portversion\n";
-		print " 6 $portrevision\n";
-		print " 6 $commentfile\n";
-		print " 7 $maintainer\n";
-		print " 8 $extractsuffix\n";
-		print " 9 $mastersites\n";
-		print "10 $builddepends\n";
-		print "11 $rundepends\n";
+		print " portname     ='$this->{name}'\n";
+		print " packagename  ='$portname'\n";
+		print " category     ='$this->{category}'\n";
+		print " packagename  ='$packagename'\n";
+		print " descrpath    ='$descrpath'\n";
+		print " categories   ='$categories'\n";
+		print " portversion  ='$portversion'\n";
+		print " portrevision ='$portrevision'\n";
+		print " commentfile  ='$commentfile'\n";
+		print " maintainer   ='$maintainer'\n";
+		print " extractsuffix='$extractsuffix'\n";
+		print " mastersites  ='$mastersites'\n";
+		print " builddepends ='$builddepends'\n";
+		print " rundepends   ='$rundepends'\n";
 
 		(my $longdescription, my $homepage) = _GetDescrAndHomePage($descrpath);
 		my $shortdescription = FreshPorts::Utilities::ReadFile($commentfile);
