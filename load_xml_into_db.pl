@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# $Id: load_xml_into_db.pl,v 1.18 2001-11-23 04:51:39 dan Exp $
+# $Id: load_xml_into_db.pl,v 1.19 2001-11-24 21:41:50 dan Exp $
 #
 #
 # Parse cvs messages in XML format so they can be put into a database
@@ -210,13 +210,20 @@ sub handle_os_end {
 
 sub handle_update_end
 {
+	#
+	# By this point, we have all of the XML information.  We have saved the files
+	# to the element table, and the element_revision table has been updated.
+	# Now we want to update the Ports subsection of the database based upon
+	# the list of files we have.
+
+
+	FreshPorts::VerifyPort::SaveChangesToPortsTree($commit_log_id, \@Files, $dbh);
 
 	# this is where we set the needs_refresh field for each port touched by this commit.
 	# once that is done, we commit.
-
-	FreshPorts::VerifyPort::SetNeedsRefreshForPortsAssociatedWithMessage($commit_log_id, \@Files);
-
+	FreshPorts::VerifyPort::SetNeedsRefreshForPortsAssociatedWithMessage($commit_log_id, \@Files, $dbh);
 	$dbh->commit();
+
 
 	print "\n --- end of this update --- \n";
 
@@ -366,21 +373,6 @@ sub handle_file_end
 	}
 
 	#
-	# This is where we should start looking at $filename
-	# to see if it's within the ports subtree. If so,
-	# we need to ensure the category and port both exist.
-	# Logically, we *should* only ever have to do this
-	# if we are doing an Add.  But if the mail messages
-	# arrive in the wrong order, we could get a modify
-	# before the Add arrives.  Therefore,  do this for
-	# every file.  See EnsureCategoryAndPortExist for
-	# details.
-	#
-
-print "element_id='$element_id'\nfilename='$filename'\n";
-	FreshPorts::VerifyPort::EnsureCategoryAndPortExist($element_id, $filename, $dbh);
-
-	#
 	# the ElementRevision entry must always exist, regardless
 	# of what we are doing.  If we are deleting an item, it may
 	# have not yet been added.  This may be because of mail
@@ -405,8 +397,6 @@ print "$FreshPorts::Constants::commit_log_elements_seq\n";
 
 	$commit_log_element->save();
 
-#	CommitLogElementsInsert($commit_log_id, $element_id, $revisionname, $fileaction, $dbh);
-
 	#
 	# when adding new elements, be sure to record the new revision name.
 	#
@@ -423,36 +413,6 @@ print "$FreshPorts::Constants::commit_log_elements_seq\n";
 	undef $Updates{FileAction};
 	undef $Updates{FilePath};
 	undef $Updates{FileRevision};
-}
-
-sub CommitLogElementsInsert($;$;$;$;$) {
-   my $CommitLogID  = shift;
-   my $ElementID    = shift;
-   my $RevisionName = shift;
-   my $FileAction   = shift;
-   my $dbh          = shift;
-
-   my $sth;
-   my $sql;
-
-   my $QuotedRevisionName = $dbh->quote($RevisionName);
-   my $QuotedFileAction   = $dbh->quote($FileAction);
-
-   $sql = "insert into commit_log_elements (commit_log_id, element_id, revision_name, change_type) \
-             values ($CommitLogID, $ElementID, $QuotedRevisionName, $QuotedFileAction)";
-
-   print "sql = '$sql'\n";
-
-   if (!$debug) {
-
-      $sth = $dbh->prepare($sql);
-      if (!$sth->execute) {
-           Sys::Syslog::syslog('warning', "Could not execute SQL");
-           die "Could not execute SQL $sql ... maybe invalid?";
-           }
-
-      $sth->finish();
-   }
 }
 
 sub ElementRevisionExists($;$;$) {
