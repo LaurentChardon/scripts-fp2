@@ -71,6 +71,7 @@ foreach $dirname (@PORTS) {
     my $port;
     my $category;
     my $needs_refresh;
+    my $FetchWorked;
 
     print "found $dirname";
 
@@ -83,19 +84,38 @@ foreach $dirname (@PORTS) {
 
    print "needs_refresh = $needs_refresh\n";
 
+   $FetchWorked = 1;
+
    while ((my $key, my $value) = each %FilesWhichPromptRefresh) {
       if ($needs_refresh & $value) {
          print "now fetching $key\n";
-         `sh fetch-cvs-file.sh $category $port $key`
+         #
+         # should this be path hardcoded?
+         # if it isn't, the chdir which occurs in RefreshPort below
+         # makes this call fail (because it can't find the script).
+         #
+         `sh /home/dan/walkports/fetch-cvs-file.sh $category $port $key`;
+ 
+         if (($? >> 8)) {
+            print "that fetch failed.  What do to?\n";
+            $FetchWorked = 0;
+
+            # and we're outta here
+            last;
+         }
       }
    }
 
-#   print "press enter to continue "; <STDIN>;
-   print "refreshing port...\n";
+   print "press enter to continue "; <STDIN>;
    
-   RefreshPort($dirname, $port, $dbh);
+   if ($FetchWorked) {
+      print "refreshing port...\n";
+      RefreshPort($dirname, $port, $dbh);
+   } else {
+      print "can't do anything about that port...\n";
+   }
 
-#   print "press enter to continue ";<STDIN>;
+   print "press enter to continue ";<STDIN>;
 }
 
 $dbh->disconnect();
