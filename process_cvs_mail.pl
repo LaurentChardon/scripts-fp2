@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 #
-# $Id: process_cvs_mail.pl,v 1.4 2001-11-16 18:50:05 dan Exp $
+# $Id: process_cvs_mail.pl,v 1.5 2001-11-16 19:40:47 dan Exp $
 #
 # Process incoming mail from cvs-all mailing list at freebsd.org
 # and convert it to XML output according to the FreshPorts DTD.
@@ -532,18 +532,40 @@ sub GetMessage_To {
 }
 
 sub GetMessage_Subject {
+#
+# This obtains the subject from the raw email.
+# It assumes the email has this format or similar:
+# Subject: cvs commit: CVSROOT modules ports/math Makefile ports/math/py-mpz
+#          Makefile distinfo pkg-comment pkg-descr pkg-plist
+#          ports/math/py-mpz/files setup.py
+#
+# 123456789
+# This assumes 9 spaces there...
+#
+
         my ($message) = @_;
         my ($Subject);
+
+		my ($FoundSubject) = 0;
 
         my (@lines) = split("\n", $message);
 
         for (@lines) {
                 my ($line) = $_;
 
-                if ($line =~ /^Subject:/) {
-                        $Subject = (split/: /, $line, 2)[1];
-                        last;
-                }
+				if ($FoundSubject) {
+					if ($line =~ /^         /) {
+						$Subject .= ' ' . (split/         /, $line, 2)[1];
+						next;
+					} else {
+						last;
+					}
+				} else {
+	                if ($line =~ /^Subject:/) {
+    	                    $Subject = (split/: /, $line, 2)[1];
+							$FoundSubject = 1;
+                	}
+				}
         }
 
         return $Subject;
