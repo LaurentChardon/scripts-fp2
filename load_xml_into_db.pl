@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# $Id: load_xml_into_db.pl,v 1.13 2001-11-20 18:17:39 dan Exp $
+# $Id: load_xml_into_db.pl,v 1.14 2001-11-20 18:40:09 dan Exp $
 #
 #
 # Parse cvs messages in XML format so they can be put into a database
@@ -706,7 +706,7 @@ sub SystemBranchIDGetOrCreate($;$;$) {
 	if (!defined($SystemBranchID)) {
 		Sys::Syslog::syslog('warning', "creating new Branch $branch_name");
 
-		my $SystemBranchID = FreshPorts::Database::GetNextValue($FreshPorts::Constants::system_branch_seq, $dbh);
+		$SystemBranchID = FreshPorts::Database::GetNextValue($FreshPorts::Constants::system_branch_seq, $dbh);
 		$sql = "insert into system_branch (id, system_id, branch_name) values " .
 					" ($SystemBranchID, $SystemID, " . $dbh->quote($branch_name) . ")";
 
