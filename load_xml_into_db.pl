@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# $Id: load_xml_into_db.pl,v 1.24 2001-12-05 06:06:08 dan Exp $
+# $Id: load_xml_into_db.pl,v 1.25 2001-12-05 08:33:38 dan Exp $
 #
 #
 # Parse cvs messages in XML format so they can be put into a database
@@ -223,6 +223,12 @@ sub handle_update_end
 
 	print "\n --- end of this update --- \n";
 
+	# this is where we set the needs_refresh field for each port touched by this commit.
+	# once that is done, we commit.
+	# This needs to be done before re undef everything.
+
+    my $commit_date     = sprintf "%04u%02u%02u", $Updates{dateyear}, $Updates{datemonth}, $Updates{dateday};
+
 	# we don't clear these values until the end of the update
 	undef $Updates{os};
 	undef $Updates{branch};
@@ -255,13 +261,8 @@ sub handle_update_end
 
 	FreshPorts::VerifyPort::RefreshAllPortsTouchedByCommit(\%Ports);
 
-	# this is where we set the needs_refresh field for each port touched by this commit.
-	# once that is done, we commit.
-
-    my $commit_date     = sprintf "%04u%02u%02u", $Updates{dateyear}, $Updates{datemonth}, $Updates{dateday};
-
 	# create the daily summaries
-	CreateDailySummary($commit_date, $dbh);
+	FreshPorts::VerifyPort::CreateDailySummary($commit_date, $dbh);
 
 	$dbh->commit();
 }
