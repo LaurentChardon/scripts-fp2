@@ -24,18 +24,32 @@ sub InitialiseNewMessage() {
 	undef %PortsChecked;
 }
 
-sub RefreshPortsAssociatedWithMessage($) {
+sub RefreshPortsAssociatedWithMessage($;$) {
 	#
 	# This function will refresh all ports associated with a given message.
 	# The ports refreshed appear in %PortsChecked.
 	# This variable is updated by EnsureCategoryAndPortExist and reset by
 	# InitialiseNewMessage.
 	#
-
-	my @Files	= shift;
+	my $commit_log_id	= shift;
+	my $Files			= shift;
 
 	my $portname;		# of the form "$category/$port"
 	my $port;			# of the form "$port_id/$category_id"
+
+	my $action;
+	my $path;
+	my $revision;
+	my $value;
+
+	print "\n\nThat message is all done under Commit ID = '$commit_log_id'\n";
+
+	print "the size of \@Files is ", scalar(@{$Files}), "\n";
+	foreach $value (@{$Files}) {
+		($action, $path, $revision) = @$value;
+		print "$action, $path, $revision\n";
+	}
+
 
 	print "\n\n\n********** These are the ports which must be updated\n\n\n";
 
@@ -60,8 +74,6 @@ sub EnsureCategoryAndPortExist($;$;$) {
 	$element_id	= shift;
 	$filename	= shift;
 	$dbh		= shift;
-
-	my $category;
 
 	#
 	# These are the directories/entries
@@ -117,13 +129,13 @@ sub EnsureCategoryAndPortExist($;$;$) {
 		} else {
 			# we need to create this catgory.
 			# remember to grab ports/<category>/pkg/COMMENT
-			Sys::Syslog::syslog('warning', "creating new category $category");
+			Sys::Syslog::syslog('warning', "creating new category $category_name");
 
 			$category->{is_primary} = 1;
 			$category_id = $category->save();
 			if (!defined($category_id)) {
-				Sys::Syslog::syslog('warning', "failed to create new category $category");
-				die "failed to create new category $category";
+				Sys::Syslog::syslog('warning', "failed to create new category $category_name");
+				die "failed to create new category $category_name";
 			}
 		}
 
@@ -138,7 +150,7 @@ sub EnsureCategoryAndPortExist($;$;$) {
 			# we need to create this port
 			# This will be an insert, rather than just an update
 			# we we would do later below
-			Sys::Syslog::syslog('warning', "creating new port $port");
+			Sys::Syslog::syslog('warning', "creating new port $port_name");
 			$port = CreatePort("$category_name/$port_name", $category_id, $dbh);
 
 			if (!defined($port->{id})) {
@@ -213,7 +225,7 @@ sub CreatePort($;$;$) {
 	#
 
 	$element = FreshPorts::Element->new($dbh);
-	$element->{pathname} = "/$FreshPorts::Config::prefix_ports/$categoryport";
+	$element->{pathname} = "/$FreshPorts::Config::ports_prefix/$categoryport";
 
 	$element_id = $element->FetchByName();
 

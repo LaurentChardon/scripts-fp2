@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-# $Id: category.pm,v 1.4 2001-11-08 23:15:03 dan Exp $
+# $Id: category.pm,v 1.5 2001-11-09 04:08:59 dan Exp $
 #
 
 package FreshPorts::Category;
@@ -51,6 +51,7 @@ sub save {
 
 	# get the name if not supplied
 	if (!$this->{name}) {
+		Sys::Syslog::syslog('warning', "name not supplied");
 		die "name not supplied";
 	}
 
@@ -158,12 +159,15 @@ sub FetchByName {
 	$row = $sth->fetchrow_hashref();
 
 	$sth->finish();
-
-	$this->{id} 			= $row->{id};
-	$this->{is_primary}		= $row->{is_primary};
-	$this->{element_id}		= $row->{element_id};
-	$this->{name}			= $row->{name};
-	$this->{description}	= $row->{description};
+	if ($row) {
+		$this->{id} 			= $row->{id};
+		$this->{is_primary}		= $row->{is_primary};
+		$this->{element_id}		= $row->{element_id};
+		$this->{name}			= $row->{name};
+		$this->{description}	= $row->{description};
+	} else {
+		print "NOT FOUND\n";
+	}
 
 	return $this->{id};
 }
@@ -175,7 +179,7 @@ sub FetchByName {
 sub _description_fetch {
 	my $category	= shift;
 
-	my $DESTDIR		= "/usr/ports/$category/pkg";
+	my $DESTDIR		= "$FreshPorts::Config::path_to_ports/$category/pkg";
 	my $SRCDIR		= "ports/$category/pkg";
 	my $FILE		= "COMMENT";
 
@@ -185,6 +189,10 @@ sub _description_fetch {
 	print "FILE   =$FILE\n";
 
 	`sh $FreshPorts::Config::scriptpath/fetch-cvs-file.sh $DESTDIR $SRCDIR $FILE`;
+	if ($?) {
+		Sys::Syslog::syslog('warning', "Could not fetch file for '$DESTDIR' '$SRCDIR' '$FILE'.  Error code = " . ($? >> 8));
+		die "Could not fetch file for '$DESTDIR' '$SRCDIR' '$FILE'.  Error code = " . ($? >> 8) . "\n";
+	}
 
 	my $description = _ReadFile("$DESTDIR/$FILE");
 

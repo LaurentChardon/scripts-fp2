@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# $Id: load_xml_into_db.pl,v 1.6 2001-11-08 23:15:03 dan Exp $
+# $Id: load_xml_into_db.pl,v 1.7 2001-11-09 04:08:59 dan Exp $
 #
 #
 # Parse cvs messages in XML format so they can be put into a database
@@ -206,15 +206,7 @@ sub handle_os_end {
 
 sub handle_update_end
 {
-	my ($action, $path, $revision);
-	my $value;
-
-	foreach $value (@Files) {
-		($action, $path, $revision) = @$value;
-		print "$action, $path, $revision\n";
-	}
-
-	FreshPorts::VerifyPort::RefreshPortsAssociatedWithMessage(@Files);
+	FreshPorts::VerifyPort::RefreshPortsAssociatedWithMessage($commit_log_id, \@Files);
 
 	print "\n --- end of this update --- \n";
 
