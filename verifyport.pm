@@ -2,6 +2,7 @@
 
 package FreshPorts::VerifyPort;
 
+use element;
 use category;
 use port;
 
@@ -96,7 +97,7 @@ sub EnsureCategoryAndPortExist($;$;$) {
 			# This will be an insert, rather than just an update
 			# we we would do later below
 			Sys::Syslog::syslog('warning', "creating new port $port");
-			$port_id = CreatePort($element_id, $category_id, $dbh);
+			$port_id = CreatePort("$category/$port", $category_id, $dbh);
 
 			if (!defined($port_id)) {
 				Sys::Syslog::syslog('warning', "failed to create new port $category/$port");
@@ -177,11 +178,27 @@ sub CreatePort($;$;$) {
 # The other fields will be populated later using the same
 # mechanism as is used for updating a port.
 #
-	my $element_id	= shift;
-	my $category_id	= shift;
-	my $dbh			= shift;
+	my $categoryport	= shift;
+	my $category_id		= shift;
+	my $dbh				= shift;
 
 	my $port;
+	my $element;
+	my $element_id;
+
+	#
+	# obtain the element which corresponds to this port
+	#
+
+	$element = FreshPorts::Element->new($dbh);
+	$element->{pathname} = "/ports/$categoryport";
+
+	$element_id = $element->FetchByName();
+
+	if (!$element_id) {
+		# create the element
+		$element_id = $element->save;
+	}
 
 	$port = FreshPorts::Port->new($dbh);
 	$port->{element_id}  = $element_id;
