@@ -2,7 +2,9 @@
 
 package FreshPorts::VerifyPort;
 
-require category;
+use category;
+use port;
+
 require Exporter;
 require Sys::Syslog;
 
@@ -136,7 +138,7 @@ sub GetCategory($;$) {
 	my $sql;
 	my @row;
 
-	$sql = "select GetCategory('$category')";
+	$sql = "select GetCategory('$category'::text)";
 	print "GetCategory sql = $sql\n";
 
 	$sth = $dbh->prepare($sql);
@@ -179,36 +181,29 @@ sub CreatePort($;$;$) {
 	my $category_id	= shift;
 	my $dbh			= shift;
 
-	my $id = GetNextValue($FreshPorts::Config::ports_id_seq, $dbh);
-	$sql = "   INSERT INTO ports (id, element_id, category_id)	\
-						values ($id, $element_id, $category_id)";
+	my $port;
 
-	print "sql is $sql\n";
+	$port = FreshPorts::Port->new($dbh);
+	$port->{element_id}  = $element_id;
+	$port->{category_id} = $category_id;
 
-	$sth = $dbh->prepare($sql);
-	$sth->execute ||
-			die "Could not execute SQL $sql ... maybe invalid? $dbh->errstr\n";
+	$port->save();
 
-	$sth->finish();
-
-	return $id;
+	return $port->{id};
 }
 
 sub CreateCategory($;$) {
 	my $name	= shift;
 	my $dbh		= shift;
 
-	my $id;
-
 	my $category;
 
-	my $system = $FreshPorts::Config::FreeBSD;
-	print "system='$system'\n";
-
 	$category = FreshPorts::Category->new($dbh);
-	$category->create($system, "$name", 1);
+	$category->{name}		= $name;
+	$category->{is_primary}	= 1;
+	$category->save;
 
-	return $id;
+	return $category->{id};
 }
 
 Sys::Syslog::setlogsock('unix');
