@@ -18,7 +18,6 @@ require Sys::Syslog;
 # new message.
 
 my %PortsChecked;	# contains an element class object.
-					# $PortsChecked{$category . "/" . $port} = [$port_id, $category_id];
 
 sub InitialiseNewMessage() {
 	undef %PortsChecked;
@@ -82,6 +81,7 @@ sub RefreshPortsAssociatedWithMessage($;$) {
 	while (($portname, $port) = each %PortsChecked) {
 		print "port = $portname, port_id = '$port->{id}', category_id='$port->{category_id}', needs_refresh='$port->{needs_refresh}'\n";
 
+		$port->save();
 #		MarkPortAsRefreshNeeded($port_id, $commit_id, $action, $entry, $dbh);
 	}
 }
