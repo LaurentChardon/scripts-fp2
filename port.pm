@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# $Id: port.pm,v 1.12 2001-11-23 04:51:39 dan Exp $
+# $Id: port.pm,v 1.13 2001-11-23 06:39:53 dan Exp $
 #
 
 package FreshPorts::Port;
@@ -150,9 +150,9 @@ print "sql = $sql\n";
 		# we don't want to do this if the port has been deleted.
 		# that sounds odd... but anything can happen...
 		#
-#		if (!defined($this->{deleted}) {
-#			$this->{needs_refresh} = $this->GetNeedsRefreshForNewPort();
-#		}
+		if (!defined($this->{deleted})) {
+			$this->{needs_refresh} = $this->GetNeedsRefreshForNewPort();
+		}
 
 		$sql = "insert into ports (id, element_id, category_id, needs_refresh) values ( \
 				$this->{id}, \
