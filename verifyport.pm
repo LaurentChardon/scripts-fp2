@@ -430,7 +430,18 @@ sub CreateDailySummary($;$) {
 		while (@myrow = $sth->fetchrow_array) {
 			print FILE '<a href="port-description.php3?port=';
 			print FILE $myrow[0] . '"><font size="-1">' . $myrow[1] . " ";
-			print FILE $myrow[2] . "</font></a><br>\n";     
+
+			#
+			# when a port is first saved, it does not contain a version.
+			# that is set when the port is refreshed.
+			# the daily summary is not created until this refresh.
+			# but in case we have parallel processes, this check
+			# should avoid a nasty little warning message.
+			#
+			if (defined($myrow[2]) {
+				print FILE $myrow[2];
+			}
+			print "</font></a><br>\n";     
 			$count++;
 		}
 
