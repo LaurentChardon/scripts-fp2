@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-# $Id: category.pm,v 1.2 2001-11-05 22:37:36 dan Exp $
+# $Id: category.pm,v 1.3 2001-11-06 21:00:14 dan Exp $
 #
 
 package FreshPorts::Category;
@@ -52,6 +52,10 @@ sub save {
 	# get the name if not supplied
 	if (!$this->{name}) {
 		die "name not supplied";
+	}
+
+	if (!$this->{is_primary}) {
+		die "is_primary not supplied";
 	}
 
 	if (!$this->{description}) {
