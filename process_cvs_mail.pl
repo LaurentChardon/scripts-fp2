@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 #
 #
-# $Id: process_cvs_mail.pl,v 1.3 2001-11-16 18:40:26 dan Exp $
+# $Id: process_cvs_mail.pl,v 1.4 2001-11-16 18:50:05 dan Exp $
 #
 # Process incoming mail from cvs-all mailing list at freebsd.org
 # and convert it to XML output according to the FreshPorts DTD.
@@ -186,7 +186,7 @@ sub GetPeople {
 
 	my ($obtainedfrom) = &GetObtainedFrom($message);
 	if ($obtainedfrom) {
-		push @people, 'OBTAINED', [ {}, 0, $obtainedfrom ];
+		push @people, 'OBTAINEDFROM', [ {}, 0, $obtainedfrom ];
 	}
 
 	return @people;
