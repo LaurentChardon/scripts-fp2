@@ -1,4 +1,9 @@
 #!/usr/bin/perl -w
+#
+# $Id: verifyport.pm,v 1.29 2001-12-22 04:29:52 dan Exp $
+#
+# Copyright (c) 2001 DVL Software
+#
 
 package FreshPorts::VerifyPort;
 
@@ -6,7 +11,8 @@ use strict;
 use element;
 use category;
 use port;
-use commit_log_port;
+use commit_log_ports;
+use commit_log_port_elements;
 use utilities;
 
 require File::Basename;
@@ -178,6 +184,12 @@ sub SaveChangesToPortsTree($;$;$) {
 
 	my %ListOfPorts;
 
+	#
+	# we record the ports affected by a given commit
+	#
+	my $commit_log_ports = FreshPorts::CommitLogPorts->new($dbh);
+
+
 #
 # %Files will contain a hash of all the files associated with this commit
 # We will do three things
@@ -227,6 +239,13 @@ sub SaveChangesToPortsTree($;$;$) {
 			$port->{last_commit_id} = $commit_log_id;
 
 			$port->save();
+
+			#
+			# make sure we record what ports were updated by this commit
+			#
+			$commit_log_ports->{commit_log_id}	= $commit_log_id;
+			$commit_log_ports->{port_id}		= $port->{id};
+			$commit_log_ports->save();
 		}
 
 		_RecordPortFilesTouchedByThatCommit($commit_log_id, $Files, \%ListOfPorts, $dbh);
@@ -321,7 +340,7 @@ sub _LoadMasterPortsForAnySlavePorts($;$) {
 
 sub _RecordPortFilesTouchedByThatCommit($;$;$;$) {
 	#
-	# This function will populate the commit_log_port table.
+	# This function will populate the commit_log_ports table.
 	#
 	my $commit_log_id	= shift;
 	my $Files			= shift;
@@ -330,9 +349,9 @@ sub _RecordPortFilesTouchedByThatCommit($;$;$;$) {
 
 	my %Ports 			= %{$PortsRef};
 
-	my $portname;			# of the form "$category/$port"
-	my $port;				# of type FreshPorts::Element
-	my $commit_log_port;	# of type FreshPorts::CommitLogPort
+	my $portname;					# of the form "$category/$port"
+	my $port;						# of type FreshPorts::Element
+	my $commit_log_port_elements;	# of type FreshPorts::CommitLogPortElements
 
 	my $action;
 	my $filename;
@@ -345,7 +364,7 @@ sub _RecordPortFilesTouchedByThatCommit($;$;$;$) {
 	my $port_name;
 	my $extra;
 
-	$commit_log_port = FreshPorts::CommitLogPort->new($dbh);
+	$commit_log_port_elements = FreshPorts::CommitLogPortElements->new($dbh);
 
 	print "\n\nThat message is all done under Commit ID = '$commit_log_id'\n";
 
@@ -385,10 +404,10 @@ sub _RecordPortFilesTouchedByThatCommit($;$;$;$) {
 				#
 				# record which files go with what port...
 				#
-				$commit_log_port->{commit_log_id}			= $commit_log_id;
-				$commit_log_port->{port_id}					= $port->{id};
-				$commit_log_port->{commit_log_element_id}	= $commit_log_element_id;
-				$commit_log_port->save();
+				$commit_log_port_elements->{commit_log_id}			= $commit_log_id;
+				$commit_log_port_elements->{port_id}				= $port->{id};
+				$commit_log_port_elements->{commit_log_element_id}	= $commit_log_element_id;
+				$commit_log_port_elements->save();
 			} else {
 				print "... but is on the list of IgnoredItems!\n\n";
 			}
@@ -459,10 +478,10 @@ sub CreateDailySummary($;$) {
 	my @myrow;
 
 	my $sql =	"select ports.id, element.name, ports.version " .
-				"from ports, commit_log, commit_log_port, element ".
-				"where ports.id                      = commit_log_port.port_id ".
-				"  and commit_log_port.commit_log_id = commit_log.id ".
-				"  and element.id                    = ports.element_id ".
+				"from ports, commit_log, commit_log_ports, element ".
+				"where ports.id                       = commit_log_ports.port_id ".
+				"  and commit_log_ports.commit_log_id = commit_log.id ".
+				"  and element.id                     = ports.element_id ".
 				"  and commit_log.commit_date between '$CommitDateStart'::timestamp and '$CommitDateStart'::timestamp + INTERVAL '1 DAY' " .
 				"order by commit_log.commit_date desc";
 
