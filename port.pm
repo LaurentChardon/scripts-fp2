@@ -1,6 +1,5 @@
 #!/usr/bin/perl
-#
-# $Id: port.pm,v 1.7 2001-11-11 02:10:30 dan Exp $
+# $Id: port.pm,v 1.8 2001-11-11 08:35:54 dan Exp $
 #
 
 package FreshPorts::Port;
@@ -41,6 +40,10 @@ sub _initialize {
 	$this->{depends_run}		= '';
 	$this->{forbidden}			= '';
 	$this->{broken}				= '';
+
+print "$FreshPorts::Constants::commit_log_seq\n";
+print "$FreshPorts::Constants::ports_seq\n";
+print "$FreshPorts::Constants::commit_log_elements_seq\n";
 }
 
 sub _GetValuesFromRow {
@@ -132,7 +135,7 @@ sub save {
 
 # update this sql to insert all fields?
 
-		$this->{id} = FreshPorts::Database::GetNextValue($FreshPorts::Constants::ports_id_seq, $dbh);
+		$this->{id} = FreshPorts::Database::GetNextValue($FreshPorts::Constants::ports_seq, $dbh);
 
 		$this->{needs_refresh} = $this->GetNeedsRefreshForNewPort();
 

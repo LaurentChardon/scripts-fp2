@@ -41,6 +41,7 @@ sub RefreshPortsAssociatedWithMessage($;$) {
 	my $action;
 	my $filename;
 	my $revision;
+	my $commit_log_element_id;
 	my $value;
 
 	my $subtree;
@@ -53,27 +54,51 @@ sub RefreshPortsAssociatedWithMessage($;$) {
 	print "\n\nThat message is all done under Commit ID = '$commit_log_id'\n";
 
 	print "the size of \@Files is ", scalar(@{$Files}), "\n";
+
+	#
+	# in this loop assign a value to needs_refresh for each port
+	#
 	foreach $value (@{$Files}) {
-		($action, $filename, $revision) = @$value;
+		($action, $filename, $revision, $commit_log_element_id) = @$value;
 
 		($subtree, $category_name, $port_name, $extra) = split/\//,$filename, 4;
-		print "$action, $filename, $revision, $subtree, $category_name, $port_name, $extra\n";
+		print "$action, $filename, $revision, $subtree, $category_name, ";
+		if (defined($port_name)) {
+			print "$port_name, ";
+		}
+
+		print ", ";
+
+		if (defined($extra)) {
+			print "$extra, ";
+		}
+
+		print ", $commit_log_element_id\n";
 
 		# is this file is in the ports tree?
 		if ($subtree eq $FreshPorts::Config::ports_prefix) {
 			print "yes, this file is in the ports tree\n";
+
+			# find the port for this filename....
+			$port = $PortsChecked{"$category_name/$port_name"};
+			if (!$port) {
+				Sys::Syslog::syslog('warning', "could not find port '$category/$port' in hash.");
+				die "could not find port '$category/$port' in hash.";
+			}
+
 			$index = $FreshPorts::Constants::FilesWhichPromptRefresh{$extra};
 			if ($index) {
 				print "yes, it's a File Which Prompts Refresh\n";
-				# find the port for this filename....
-				$port = $PortsChecked{"$category_name/$port_name"};
-				if ($port) {
-					$port->{needs_refresh} |= $index;
-				} else {
-					Sys::Syslog::syslog('warning', "could not find port '$category/$port' in hash.");
-					die "could not find port '$category/$port' in hash.";
-				}
+				$port->{needs_refresh} |= $index;
 			}
+
+			#
+			# record which files go with what port...
+			#
+			$commit_log_port->{commit_log_id}			= $commit_log_id;
+			$commit_log_port->{port_id}					= $port->{id};
+			$commit_log_port->{commit_log_element_id}	= $commit_log_element_id;
+			$commit_log_port->save();
 		}
 	}
 
@@ -82,6 +107,9 @@ sub RefreshPortsAssociatedWithMessage($;$) {
 
 	print "There are ", scalar(keys %PortsChecked), " key/value pairs in %PortsChecked\n";
 
+	#
+	# for each port, refresh that port
+	#
 	while (($portname, $port) = each %PortsChecked) {
 		print "port = $portname, port_id = '$port->{id}', category_id='$port->{category_id}', needs_refresh='$port->{needs_refresh}'\n";
 
@@ -93,9 +121,6 @@ sub RefreshPortsAssociatedWithMessage($;$) {
 		$port->save();
 #		MarkPortAsRefreshNeeded($port_id, $commit_id, $action, $entry, $dbh);
 
-		$commit_log_port->{commit_log_id}	= $commit_log_id;
-		$commit_log_port->{port_id}			= $port->{id};
-		$commit_log_port->save();
 	}
 }
 

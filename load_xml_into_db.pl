@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# $Id: load_xml_into_db.pl,v 1.8 2001-11-10 16:40:58 dan Exp $
+# $Id: load_xml_into_db.pl,v 1.9 2001-11-11 08:35:54 dan Exp $
 #
 #
 # Parse cvs messages in XML format so they can be put into a database
@@ -20,7 +20,7 @@
 #we make a great deal of use of a global variable Updates.  We should fix that up.
 # use strict;
 
-use lib '/home/lists-test/scripts';
+use lib '/home/dan/src/dev';
 
 require Sys::Syslog;
 
@@ -28,6 +28,7 @@ use element;
 use verifyport;
 use config;
 use constants;
+use commit_log_element;
 use db_utils;
 use database;
 
@@ -268,12 +269,8 @@ sub handle_file_end
 	my $element_id;
 	my $filename		= $FilePath;
 	my $revisionname	= $FileRevision;
+	my $commit_log_element;
 
-	#
-	# accumulate a list of files which will be updated later
-	#
-
-	push @Files, [$FileAction, $FilePath, $FileRevision];
 
 	print "File = [$FileAction : $FilePath";
 
@@ -395,7 +392,21 @@ print "element_id='$element_id'\nfilename='$filename'\n";
 		}
 	}
 
-	CommitLogElementsInsert($commit_log_id, $element_id, $revisionname, $fileaction, $dbh);
+	print "saving commit_log_element\n";
+
+print "$FreshPorts::Constants::commit_log_seq\n";
+print "$FreshPorts::Constants::ports_seq\n";
+print "$FreshPorts::Constants::commit_log_elements_seq\n";
+
+	$commit_log_element = FreshPorts::CommitLogElement->new($dbh);
+	$commit_log_element->{commit_log_id}	= $commit_log_id;
+	$commit_log_element->{element_id}		= $element_id;
+	$commit_log_element->{revision_name}	= $revisionname;
+	$commit_log_element->{change_type}		= $fileaction;
+
+	$commit_log_element->save();
+
+#	CommitLogElementsInsert($commit_log_id, $element_id, $revisionname, $fileaction, $dbh);
 
 	#
 	# when adding new elements, be sure to record the new revision name.
@@ -403,6 +414,12 @@ print "element_id='$element_id'\nfilename='$filename'\n";
 	if ($NewRevision) {
 		SystemVersionElementInsert($SystemVersionID, $element_id, $revisionname, $dbh);
 	}
+
+	#
+	# accumulate a list of files which will be updated later
+	#
+
+	push @Files, [$FileAction, $FilePath, $FileRevision, $commit_log_element->{id}];
 
 	undef $Updates{FileAction};
 	undef $Updates{FilePath};
